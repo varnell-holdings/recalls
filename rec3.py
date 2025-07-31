@@ -1,9 +1,10 @@
-import tkinter as tk
+# import tkinter as tk
 from tkinter import ttk, StringVar, Tk, W, E, N, S
 import csv
 import datetime
 import mammoth
 import os
+import re
 from tkinter import FALSE, Menu, Frame, messagebox
 from tkinter.filedialog import askopenfilename
 
@@ -11,7 +12,15 @@ from docx import Document
 from docx.shared import Pt
 
 
-# import pyautogui as pya
+import pyautogui as pya
+import pyperclip
+from pyisemail import is_email
+
+pya.PAUSE = 0.1
+
+import win32com.client as win32
+
+
 
 full_path = ""
 print_length = 0
@@ -32,6 +41,25 @@ doc_dict = {
     "Mill": "jm",
     "Ghaly": "sg",
 }
+
+user = os.getenv("USERNAME")
+
+if user == "John":
+    RED_BAR_POS = (280, 790)
+    TITLE_POS = (230, 170)
+    MRN_POS = (740, 315)
+    POST_CODE_POS = (610, 355)
+    DOB_POS = (750, 220)
+    FUND_NO_POS = (770, 703)
+    CLOSE_POS = (1020, 120)
+elif user == "John2":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (600, 250)
+    POST_CODE_POS = (490, 284)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (774, 96)
 
 
 def has_numbers(inputString):
@@ -157,41 +185,109 @@ def open_bc():
     name_as_list = pat[0].split()
     name_for_bc = name_as_list[-1] + "," + name_as_list[1]
     pass
-    # pya.moveTo(100, 450, duration=0.3)
-    # pya.click()
-    # pya.hotkey("ctrl", "o")
-    # pya.typewrite(name_for_bc)
-    # pya.press("enter")
-    # pya.press("enter")
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.hotkey("ctrl", "o")
+    pya.typewrite(name_for_bc)
+    pya.press("enter")
+    pya.press("enter")
     button3.config(state="disabled", style="Disabled.TButton")
     button4.config(state="disabled", style="Disabled.TButton")
     button5.config(state="normal", style="Normal.TButton")
     button7.config(state="normal", style="Normal.TButton")
     root.update_idletasks()
 
+def scraper(email=False):
+    """Three goes at copying data. If fail return 'na'"""
+    result = "na"
+    pya.hotkey("ctrl", "c")
+    result = pyperclip.paste()
+    if email:
+        result = re.split(r"[\s,:/;\\]", result)[0]
+        if not is_email(result):
+            result = ""
+
+    return result
+
+def postcode_to_state(postcode):
+    post_dic = {"3": "VIC", "4": "QLD", "5": "SA", "6": "WA", "7": "TAS"}
+
+    try:
+        if postcode[0] == "0":
+            if postcode[:2] in {"08", "09"}:
+                return "NT"
+            else:
+                return ""
+        elif postcode[0] in {"0", "1", "8", "9"}:
+            return ""
+        elif postcode[0] == "2":
+            if (2600 <= int(postcode) <= 2618) or postcode[:2] == 29:
+                return "ACT"
+            else:
+                return "NSW"
+        else:
+            return post_dic[postcode[0]]
+    except Exception:
+        return ""
+
 
 def scrape():
     global mrn
     global email
-    st_address = "1 Jones St"
-    sub_address = "Smithfield NSW 2222"
-    mrn = "121211"
-    email = "jj@example.com"
-    return st_address, sub_address
+    
+    pya.moveTo(100, 450, duration=0.1)
+    pya.click()
+    pya.moveTo(TITLE_POS)
+    pya.click()
+    
+    pya.press("tab", presses=9)
+    pyperclip.copy("")
+    street = scraper()
+    street = street.replace(",", "")
+    
+    print(street)
+    
+
+    pya.press("tab")
+    pya.press("tab")
+    pyperclip.copy("")
+    suburb = scraper()
+    
+    print(suburb)
+    
+    pya.press("tab", presses=6)
+    email = scraper()
+
+    pya.moveTo(POST_CODE_POS, duration=0.1)
+    x1, y1 = POST_CODE_POS
+    # disable_mouse(x1, y1, x1 + 1, y1 + 1)
+    pya.doubleClick()
+    postcode = scraper()
+
+    state = postcode_to_state(postcode)
+
+    suburb_state = f"{suburb} {state} {postcode}"
+    
+    return street, suburb_state
+
+    
+    pya.moveTo(MRN_POS)
+    pya.doubleClick()
+    mrn = scraper()
 
 
-def make_letter(st_address, sub_address):
+def make_letter(street, suburb_state):
     today = datetime.date.today()
-    today_str = today.strftime("%A, %-d %B %Y")
+    today_str = today.strftime("%A, %d %B %Y")
     full_name = pat[0]
     title = full_name.split()[0]
     first_name = full_name.split()[1]
     last_name = full_name.split()[-1].title()
     full_name = f"{title} {first_name} {last_name}"
 
-    text = f"{today_str} \n\n{full_name}\n{st_address}\n{sub_address}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
+    text = f"{today_str} \n\n{full_name}\n{street}\n{suburb_state}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
     doc_abr = doc_dict[pat[1]]
-    document = Document(f"recall_letters/{doc_abr}1.docx")
+    document = Document(f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}1.docx")
 
     for p in document.iter_inner_content():
         if p.text != "":  # == "Re: Your overdue procedure":
@@ -204,14 +300,15 @@ def make_letter(st_address, sub_address):
             # print(font)
             break
 
-    document.save("current.docx")
+    document.save("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
 
 
 def recall_compose():
     # scrape details
-    st_address, sub_address = scrape()
+    street, suburb_state = scrape()
     # compose recall letter
-    make_letter(st_address, sub_address)
+    make_letter(street, suburb_state)
+    os.startfile("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
     # config gui
     button5.config(state="normal", style="Normal.TButton")
     button6.config(state="normal", style="Normal.TButton")
@@ -221,7 +318,37 @@ def recall_compose():
 
 def send_email():
     # send email
-    pass
+    word_app = win32.Dispatch("Word.Application")
+    word_app.Visible = False
+    doc = word_app.Documents.Open("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
+    
+    html_path = r"D:\\JOHN TILLET\\source\\active\\recalls\\temp_email.html"
+    try:
+        doc.SaveAs2(html_path, FileFormat=8)
+    except Exception as e:
+        print(f"{e}")
+        pass
+    finally:
+        doc.Close()
+        word_app.Quit()
+    
+    with open(html_path, 'r', encoding='cp1252') as f:
+        html_content = f.read()
+    
+    
+    
+    
+    outlook = win32.Dispatch("Outlook.Application")
+    mail = outlook.CreateItem(0)  # 0 represents an email item
+    mail.Subject = "Procedure reminder"
+    mail.HTMLBody = html_content
+    mail.To = email
+
+    # # Uncomment to actually send the email
+    # # mail.Send()
+
+    # # Or display it for review before sending
+    mail.Display()
     # write to csv
     day_sent = datetime.date.today().isoformat()
     with open("recalls.csv", "a") as f:
