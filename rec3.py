@@ -2,23 +2,22 @@
 from tkinter import ttk, StringVar, Tk, W, E, N, S
 import csv
 import datetime
-import mammoth
+
 import os
 import re
 from tkinter import FALSE, Menu, Frame, messagebox
 from tkinter.filedialog import askopenfilename
 
-from docx import Document
+from docx import Document  #pip  install python-docs
 from docx.shared import Pt
-
-
+import mammoth
 import pyautogui as pya
 import pyperclip
 from pyisemail import is_email
 
-pya.PAUSE = 0.1
+pya.PAUSE = 0.6
 
-import win32com.client as win32
+import win32com.client as win32  # pip install pywin32
 
 
 
@@ -42,6 +41,8 @@ doc_dict = {
     "Ghaly": "sg",
 }
 
+proc_dict = {"Colonoscopy": "c", 'COL/PE': "d", "Panendoscopy": "p"}
+
 user = os.getenv("USERNAME")
 
 if user == "John":
@@ -60,6 +61,33 @@ elif user == "John2":
     DOB_POS = (600, 174)
     FUND_NO_POS = (580, 548)
     CLOSE_POS = (774, 96)
+elif user == "Regina":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (774, 96)
+elif user == "Recept5":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (780, 96)
+elif user == "Typing2":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (780, 96)
+
+
+
 
 
 def has_numbers(inputString):
@@ -148,6 +176,7 @@ def next_patient():
     global pat
     try:
         pat = output_list_3.pop()
+        print(pat)
         # name_for_label = name_as_list[-1]
         name_for_label = pat[0]
         p.set(name_for_label)
@@ -198,15 +227,18 @@ def open_bc():
     root.update_idletasks()
 
 def scraper(email=False):
-    """Three goes at copying data. If fail return 'na'"""
+    """'"""
+    print("scraper called")
     result = "na"
+    print(result)
     pya.hotkey("ctrl", "c")
     result = pyperclip.paste()
+    print("after scrape", result)
     if email:
         result = re.split(r"[\s,:/;\\]", result)[0]
         if not is_email(result):
             result = ""
-
+    print(result)
     return result
 
 def postcode_to_state(postcode):
@@ -267,13 +299,14 @@ def scrape():
     state = postcode_to_state(postcode)
 
     suburb_state = f"{suburb} {state} {postcode}"
-    
-    return street, suburb_state
 
-    
     pya.moveTo(MRN_POS)
     pya.doubleClick()
     mrn = scraper()
+
+    print(f"Addresses {street}  {suburb_state}")
+
+    return street, suburb_state
 
 
 def make_letter(street, suburb_state):
@@ -287,7 +320,8 @@ def make_letter(street, suburb_state):
 
     text = f"{today_str} \n\n{full_name}\n{street}\n{suburb_state}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
     doc_abr = doc_dict[pat[1]]
-    document = Document(f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}1.docx")
+    proc_abr = proc_dict[pat[2]]
+    document = Document(f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}{proc_abr}1.docx")
 
     for p in document.iter_inner_content():
         if p.text != "":  # == "Re: Your overdue procedure":
@@ -368,6 +402,24 @@ def send_email():
 
 
 def no_recall():
+    # pya.click(100, 400)
+    # pya.press("up", presses=3)
+    # pya.press("enter")
+    # pya.hotkey("alt", "c")
+    # pyperclip.copy("")
+    # message = scraper()
+    # message = message + " no recall sent"
+    # print(message)
+    # pya.write(message)
+    # pya.press("enter")
+    # pya.hotkey("shift", "tab")
+    # pya.press("enter")
+    # pya.hotkey("alt", "m")
+    # pya.press("enter")
+    # pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
+    # pya.click()
+    # pya.hotkey("alt", "n")
+    # pya.moveTo(50, 200)
     # reset button3
     button3_label.set("Get Next Patient")
     p.set("")
