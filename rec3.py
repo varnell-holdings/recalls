@@ -8,7 +8,7 @@ import re
 from tkinter import FALSE, Menu, Frame, messagebox
 from tkinter.filedialog import askopenfilename
 
-from docx import Document  #pip  install python-docs
+from docx import Document  # pip  install python-docs
 from docx.shared import Pt
 import mammoth
 import pyautogui as pya
@@ -18,7 +18,6 @@ from pyisemail import is_email
 pya.PAUSE = 0.6
 
 import win32com.client as win32  # pip install pywin32
-
 
 
 full_path = ""
@@ -41,7 +40,7 @@ doc_dict = {
     "Ghaly": "sg",
 }
 
-proc_dict = {"Colonoscopy": "c", 'COL/PE': "d", "Panendoscopy": "p"}
+proc_dict = {"Colonoscopy": "c", "COL/PE": "d", "Panendoscopy": "p"}
 
 user = os.getenv("USERNAME")
 
@@ -87,7 +86,8 @@ elif user == "Typing2":
     CLOSE_POS = (780, 96)
 
 
-
+def has_alpha(inputString):
+    return any(char.isalpha() for char in inputString)
 
 
 def has_numbers(inputString):
@@ -123,27 +123,35 @@ def extract():
         f.write(text_content)
     with open("output.txt", "r") as f:
         for line in f:
-            if not has_numbers(line) and not line.isspace():
+            if (
+                not (has_numbers(line) and has_alpha(line))
+                and not (has_numbers(line) and "/" in line)
+                and not line.isspace()
+            ):
                 # f2.write(f"{i}   {line}")
                 output_list_1.append(line.strip())
+
         for i, element in enumerate(output_list_1):
             if i < 5:
                 continue
             else:
                 output_list_2.append(element)
-
+        print(output_list_2)
         with open("output.csv", "w") as f:
             writer = csv.writer(f)
             csv_row = []
             patient = []
             for i, element in enumerate(output_list_2):
-                if i % 3 == 0:
+                if i % 4 == 0:
                     csv_row.append(element)
                     patient.append(element)
-                elif i % 3 == 1:
+                elif i % 4 == 1:
                     doc = element.split()[2]
                     csv_row.append(doc)
                     patient.append(doc)
+                elif i % 4 == 2:
+                    csv_row.append(element)
+                    patient.append(element)
                 else:
                     csv_row.append(element)
                     patient.append(element)
@@ -178,7 +186,7 @@ def next_patient():
         pat = output_list_3.pop()
         print(pat)
         # name_for_label = name_as_list[-1]
-        name_for_label = pat[0]
+        name_for_label = f"{pat[0]}  {pat[2]}"
         p.set(name_for_label)
         print(f"Print length - {print_length}")
         num_to_do.set(str(print_length))
@@ -226,6 +234,7 @@ def open_bc():
     button7.config(state="normal", style="Normal.TButton")
     root.update_idletasks()
 
+
 def scraper(email=False):
     """'"""
     print("scraper called")
@@ -240,6 +249,7 @@ def scraper(email=False):
             result = ""
     print(result)
     return result
+
 
 def postcode_to_state(postcode):
     post_dic = {"3": "VIC", "4": "QLD", "5": "SA", "6": "WA", "7": "TAS"}
@@ -266,27 +276,26 @@ def postcode_to_state(postcode):
 def scrape():
     global mrn
     global email
-    
+
     pya.moveTo(100, 450, duration=0.1)
     pya.click()
     pya.moveTo(TITLE_POS)
     pya.click()
-    
+
     pya.press("tab", presses=9)
     pyperclip.copy("")
     street = scraper()
     street = street.replace(",", "")
-    
+
     print(street)
-    
 
     pya.press("tab")
     pya.press("tab")
     pyperclip.copy("")
     suburb = scraper()
-    
+
     print(suburb)
-    
+
     pya.press("tab", presses=6)
     email = scraper()
 
@@ -320,8 +329,10 @@ def make_letter(street, suburb_state):
 
     text = f"{today_str} \n\n{full_name}\n{street}\n{suburb_state}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
     doc_abr = doc_dict[pat[1]]
-    proc_abr = proc_dict[pat[2]]
-    document = Document(f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}{proc_abr}1.docx")
+    proc_abr = proc_dict[pat[3]]
+    document = Document(
+        f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}{proc_abr}1.docx"
+    )
 
     for p in document.iter_inner_content():
         if p.text != "":  # == "Re: Your overdue procedure":
@@ -354,8 +365,10 @@ def send_email():
     # send email
     word_app = win32.Dispatch("Word.Application")
     word_app.Visible = False
-    doc = word_app.Documents.Open("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
-    
+    doc = word_app.Documents.Open(
+        "D:\\JOHN TILLET\\source\\active\\recalls\\current.docx"
+    )
+
     html_path = r"D:\\JOHN TILLET\\source\\active\\recalls\\temp_email.html"
     try:
         doc.SaveAs2(html_path, FileFormat=8)
@@ -365,13 +378,10 @@ def send_email():
     finally:
         doc.Close()
         word_app.Quit()
-    
-    with open(html_path, 'r', encoding='cp1252') as f:
+
+    with open(html_path, "r", encoding="cp1252") as f:
         html_content = f.read()
-    
-    
-    
-    
+
     outlook = win32.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)  # 0 represents an email item
     mail.Subject = "Procedure reminder"
