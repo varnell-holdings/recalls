@@ -1,4 +1,4 @@
-# import tkinter as tk
+import argparse
 from tkinter import ttk, StringVar, Tk, W, E, N, S
 import csv
 import datetime
@@ -10,6 +10,7 @@ from tkinter.filedialog import askopenfilename
 
 from docx import Document  # pip  install python-docs
 from docx.shared import Pt
+from jinja2 import Environment, FileSystemLoader
 import mammoth
 import pyautogui as pya
 import pyperclip
@@ -19,12 +20,26 @@ pya.PAUSE = 0.6
 
 import win32com.client as win32  # pip install pywin32
 
+parser = argparse.ArgumentParser(description="This is a test script")
+parser.add_argument("-t", "--test", action="store_true", help="Run the test")
+args = parser.parse_args()
+if args.test:
+    print("Test mode activated")
+    csv_address = "d:\\john tillet\\source\\active\\recalls\\test_csv.csv"
+
+else:
+    print("No test mode activated")
+    csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\recalls_csv.csv"
+
 
 full_path = ""
 print_length = 0
 pat = []  # eg ['Mr Alan MATHISON', 'Stoita', 'Colonoscopy']
 email = ""
+phone = ""
 mrn = ""
+dob = ""
+
 output_list_1 = []
 output_list_2 = []
 output_list_3 = []
@@ -182,11 +197,13 @@ def next_patient():
     global output_list_2
     global output_list_3
     global pat
+    global phone
     try:
         pat = output_list_3.pop()
         print(pat)
-        # name_for_label = name_as_list[-1]
-        name_for_label = f"{pat[0]}  {pat[2]}"
+        name = pat[0]
+        phone = pat[2]
+        name_for_label = f"{name}  {phone}"
         p.set(name_for_label)
         print(f"Print length - {print_length}")
         num_to_do.set(str(print_length))
@@ -276,6 +293,7 @@ def postcode_to_state(postcode):
 def scrape():
     global mrn
     global email
+    global dob
 
     pya.moveTo(100, 450, duration=0.1)
     pya.click()
@@ -312,13 +330,48 @@ def scrape():
     pya.moveTo(MRN_POS)
     pya.doubleClick()
     mrn = scraper()
+    
+    pya.moveTo(DOB_POS)
+    pya.doubleClick()
+    dob = scraper()
 
     print(f"Addresses {street}  {suburb_state}")
 
     return street, suburb_state
 
 
-def make_letter(street, suburb_state):
+# def make_letter(street, suburb_state):
+#     today = datetime.date.today()
+#     today_str = today.strftime("%A, %d %B %Y")
+#     full_name = pat[0]
+#     title = full_name.split()[0]
+#     first_name = full_name.split()[1]
+#     last_name = full_name.split()[-1].title()
+#     full_name = f"{title} {first_name} {last_name}"
+
+#     text = f"{today_str} \n\n{full_name}\n{street}\n{suburb_state}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
+#     doc_abr = doc_dict[pat[1]]
+#     proc_abr = proc_dict[pat[3]]
+#     document = Document(
+#         f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}{proc_abr}1.docx"
+#     )
+
+#     for p in document.iter_inner_content():
+#         if p.text != "":  # == "Re: Your overdue procedure":
+#             # p.insert_paragraph_before(today_str)
+#             this_bit = p.insert_paragraph_before()
+#             this_run = this_bit.add_run(text)
+#             font = this_run.font
+#             font.name = "Bookman Old Style"
+#             font.size = Pt(10)
+#             # print(font)
+#             break
+
+#     document.save("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
+
+
+
+def make_html_body(street, suburb_state):
     today = datetime.date.today()
     today_str = today.strftime("%A, %d %B %Y")
     full_name = pat[0]
@@ -330,30 +383,27 @@ def make_letter(street, suburb_state):
     text = f"{today_str} \n\n{full_name}\n{street}\n{suburb_state}\n\nDear {pat[0].split()[0]} {pat[0].split()[-1].title()},\n\n"
     doc_abr = doc_dict[pat[1]]
     proc_abr = proc_dict[pat[3]]
-    document = Document(
-        f"D:\\JOHN TILLET\\source\\active\\recalls\\recall_letters\\{doc_abr}{proc_abr}1.docx"
+
+    path_to_template = "D:\\JOHN TILLET\\source\\active\\recalls"
+    loader = FileSystemLoader(path_to_template)
+    env = Environment(loader=loader)
+    template_name = "body_template.html"
+    template = env.get_template(template_name)
+    page = template.render(
+        today_date=today_str,
+        full_name=full_name,
     )
 
-    for p in document.iter_inner_content():
-        if p.text != "":  # == "Re: Your overdue procedure":
-            # p.insert_paragraph_before(today_str)
-            this_bit = p.insert_paragraph_before()
-            this_run = this_bit.add_run(text)
-            font = this_run.font
-            font.name = "Bookman Old Style"
-            font.size = Pt(10)
-            # print(font)
-            break
-
-    document.save("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
+    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body.html", "wt") as f:
+        f.write(page)
 
 
 def recall_compose():
     # scrape details
     street, suburb_state = scrape()
     # compose recall letter
-    make_letter(street, suburb_state)
-    os.startfile("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
+    make_html_body(street, suburb_state)
+    # os.startfile("D:\\JOHN TILLET\\source\\active\\recalls\\current.docx")
     # config gui
     button5.config(state="normal", style="Normal.TButton")
     button6.config(state="normal", style="Normal.TButton")
@@ -363,25 +413,27 @@ def recall_compose():
 
 def send_email():
     # send email
-    word_app = win32.Dispatch("Word.Application")
-    word_app.Visible = False
-    doc = word_app.Documents.Open(
-        "D:\\JOHN TILLET\\source\\active\\recalls\\current.docx"
-    )
+    # word_app = win32.Dispatch("Word.Application")
+    # word_app.Visible = False
+    # doc = word_app.Documents.Open(
+    #     "D:\\JOHN TILLET\\source\\active\\recalls\\current.docx"
+    # )
 
-    html_path = r"D:\\JOHN TILLET\\source\\active\\recalls\\temp_email.html"
-    try:
-        doc.SaveAs2(html_path, FileFormat=8)
-    except Exception as e:
-        print(f"{e}")
-        pass
-    finally:
-        doc.Close()
-        word_app.Quit()
+    # html_path = r"D:\\JOHN TILLET\\source\\active\\recalls\\temp_email.html"
+    # try:
+    #     doc.SaveAs2(html_path, FileFormat=8)
+    # except Exception as e:
+    #     print(f"{e}")
+    #     pass
+    # finally:
+    #     doc.Close()
+    #     word_app.Quit()
 
-    with open(html_path, "r", encoding="cp1252") as f:
+    # with open(html_path, "r", encoding="cp1252") as f:
+    #     html_content = f.read()
+
+    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body.html", "rt") as f:
         html_content = f.read()
-
     outlook = win32.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)  # 0 represents an email item
     mail.Subject = "Procedure reminder"
@@ -395,9 +447,9 @@ def send_email():
     mail.Display()
     # write to csv
     day_sent = datetime.date.today().isoformat()
-    with open("recalls.csv", "a") as f:
-        writer = csv.writer(f)
-        entry = [pat[0], pat[1], pat[2], mrn, email, day_sent, "", "", "", "no"]
+    with open(csv_address, "a") as f:
+        writer = csv.writer(f, dialect="excel", lineterminator="\n")
+        entry = [pat[0], pat[1], pat[2], mrn, dob, phone, email, day_sent, "", "", "", "no"]
         writer.writerow(entry)
 
     # config gui
