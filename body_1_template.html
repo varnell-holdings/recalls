@@ -1,3 +1,4 @@
+<body style="font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000000; margin: 0; padding: 20px;">
 <style>
     @media screen and (max-width: 600px) {
         .mobile-full-width { width: 100% !important; }
@@ -14,8 +15,10 @@
             {{address2}}<br><br>
             Dear {{title}} {{last_name}},<br>
             <p>
-                As part of our continuing total Quality Management Program for better health, we wish to courteously remind you that you are due for a follow-up {{procedure}} as recommended at the time of your previous procedure with us.
+                This is a courtesy reminder that you that you are now due for a follow-up {{procedure}}.
             </p>
+            
+            {% if ocd %}
 
             {% if over_75 %}
 
@@ -40,12 +43,14 @@
             <p>If you answered No to all of the above questions, you should book an appointment for your procedure.</p>
 
             {% endif %}
+            {% endif %}
 
-            <p>The DEC has contracts with all the health funds. Our staff will be able to provide you with the details of any excess or gap payments at the time of booking your appointment or procedure.</p>
-            <p>Please note, it is a Medicare requirement that all patients having procedures are covered by a current referral.</p>
+            <p>To book or for any enquiries please call us on 8382-6622.</p>
+            <p>Please be advised you will require a new referral as per Medicare guidelines. Failure to supply one may incur additional fees.</p>
             <p>Yours sincerely,</p>
-            <p>Diagnostic Endoscopy Centre on behalf of Dr {{doctor}}.</p><br>
-            <img src="dec_logo.jpg">
+            <p>Diagnostic Endoscopy Centre on behalf of Dr {{ doc_first_name }} {{doctor}}.</p><br>
+            <img src="cid:{{our_content_id}}" alt="Logo"><br><br>
         </td>
     </tr>
 </table>
+</body
