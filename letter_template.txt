@@ -1,0 +1,33 @@
+            {{today_date}}
+
+            Dear {{title}} {{last_name}},
+
+            This is a courtesy reminder that you that you are now due for a follow-up {{procedure}}.
+            {% if ocd %} {% if over_75 %}
+            As you are over 75 years of age you should book an appointment
+            to see your specialist, Dr {{doctor}} prior to your procedure.
+            {% else %}
+            If you answer Yes to any of the following questions you should
+            book an appointment to see your specialist Dr {{doctor}}
+            prior to your procedure.
+            
+                - Do you have symptoms of concern?
+                - Do you take strong blood thinning medications - 
+                        Plavix/Iscover(Clopidogrel), Xarelto(Rivaroxiban),
+                        Eliquis(Apixiban), Pradaxa(Dabigatran) or Warfarin?
+                - Do you have diabetes that requires insulin?
+                - Do you have chronic kidney disease?
+                - Weigh over 130 kg?
+                - Have you had a stroke or a heart attack within the past year?
+                - Have you had any other significant health issues since you were last here?
+            
+            If you answered No to all of the above questions you should
+            book an appointment for your procedure.
+            {% endif %} {% endif %}
+            To book or for any enquiries please call us on 8382-6622.
+
+            Please be advised you will require a new referral as per Medicare guidelines.
+            Failure to supply one may incur additional fees.
+
+            Yours sincerely,
+            Diagnostic Endoscopy Centre on behalf of Dr {{ doc_first_name }} {{doctor}}.
