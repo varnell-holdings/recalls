@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Sep 25 08:23:50 2025
-
-@author: John2
-"""
-
 import argparse
 import csv
 import datetime
@@ -26,13 +19,12 @@ from docx.shared import Pt
 
 from jinja2 import Environment, FileSystemLoader
 from striprtf.striprtf import rtf_to_text
-
 import pyautogui as pya
 import pyperclip
 from pyisemail import is_email
 import win32com.client as win32  # pip install pywin32
 
-pya.PAUSE = 0.2
+pya.PAUSE = 0.1
 
 # Get today's date
 today = datetime.date.today()
@@ -84,8 +76,9 @@ full_doc_dict = {
     "Sanagapalli": "Santosh",
     "Williams": "David",
     "Wettstein": "Antony",
-    "Vivekanandahrajah": "Suhirdan",
+    "Vivekanandarajah": "Suhirdan",
     "Ghaly": "Simon",
+    "Vickers": "Chris",
 }
 
 proc_dict = {"Colonoscopy": "c", "COL/PE": "d", "Panendoscopy": "p"}
@@ -111,7 +104,7 @@ elif user == "John2":
     FUND_NO_POS = (580, 548)
     CLOSE_POS = (774, 96)
     SMS_POS = (360, 630)
-    EMAIL_POS = (600, 395)
+    EMAIL_POS = (450, 395)
 elif user == "Recept5":
     RED_BAR_POS = (160, 630)
     TITLE_POS = (200, 134)
@@ -129,13 +122,13 @@ elif user == "Typing2":
     FUND_NO_POS = (580, 548)
     CLOSE_POS = (780, 96)
     SMS_POS = (360, 630)
-    EMAIL_POS = (600, 400)
+    EMAIL_POS = (450, 400)
 
 
 def get_pickled_list():
     global output_list_4
     with open(pickle_address, "rb") as f:
-        output_list_4 =  pickle.load(f)
+        output_list_4 = pickle.load(f)
 
 
 def set_pickled_list():
@@ -158,19 +151,17 @@ def collect_file():
     root.update_idletasks()
 
 
-
-
 def extract():
     global output_list_4
     global num_to_do   # int
     text2 = ""
-    
+
     with open(full_path, "r") as rtf_file:
         rtf_content = rtf_file.read()
 
     text = rtf_to_text(rtf_content)
 
-    for i, line in enumerate(text.split("\n")):
+    for i, line in enumerate(text.splitlines()):
         if i == 0:
             continue
         elif "|||||" in line or not line:
@@ -179,20 +170,24 @@ def extract():
             text2 += line
             text2 += "\n"
 
-    for line in text2.split("\n"):
+    for line in text2.splitlines():
         local_list = []
         for i, field in enumerate(line.split("|")):
             if i == 0:
                 local_list.append(field)
             elif i == 1:
-                local_list.append(field.split()[2])
+                doc_name = field.split()[2]
+                if doc_name == "Vickers":
+                    doc_name = "Mill"
+                print(doc_name)
+                local_list.append(doc_name)
             elif i == 2:
                 local_list.append(field)
             elif i == 3:
                 local_list.append(field)
         if local_list != [""]:
             output_list_4.append(local_list)
-    
+
     output_list_4.reverse()
     print(output_list_4)
     num_to_do = len(output_list_4)
@@ -201,32 +196,34 @@ def extract():
     button1.config(state="disabled", style="Disabled.TButton")
     button2.config(state="disabled", style="Disabled.TButton")
 
+
 def next_patient():
     global full_path
     global num_to_do
     global output_list_4
     global pat
     global phone
-    get_pickled_list() # this gets output_list_4
+    get_pickled_list()  # this gets output_list_4
     try:
         pat = output_list_4.pop()
         print(pat)
         name = pat[0]
         phone = pat[2]
-        name_for_label = f"{name}\nnn{phone}"
+        name_for_label = f"{name}\n{phone}"
         p.set(name_for_label)
 
         num_to_do = len(output_list_4)
         n.set(f"{num_to_do} patients to do.")
+        scrape_info_label.set("")
+        root.update_idletasks()
         button3.config(state="disabled", style="Disabled.TButton")
         # button5.config(state="normal", style="Normal.TButton")
-        
 
     except IndexError:
         p.set("Finished!")
         num_to_do = 0
         n.set(f"{num_to_do} patients to do.")
-        shutil.move(full_path, old_path)
+        # shutil.move(full_path, old_path)
         full_path = ""
         button1.config(state="normal", style="Normal.TButton")
         button2.config(state="normal", style="Normal.TButton")
@@ -297,7 +294,7 @@ def scrape():
     global mrn
     global email
     global dob
-    
+
     scrape_info_label.set("")
     root.update_idletasks()
 
@@ -322,16 +319,22 @@ def scrape():
     dob = scraper()
     print(dob)
 
-    if (not mrn.isdigit()) or (not parse(dob)):
-        scrape_info_label.set("\u2740 Error in data")
+    if not mrn.isdigit():
+        scrape_info_label.set("\u274C Error in MRN\nTry again.")
         root.update_idletasks()
         return
-
-    if is_email(email) and email not in {"", "na"}:
-        scrape_info_label.set("\u2705")
+    elif not parse_dob():
+        scrape_info_label.set("\u274C Error in DOB\nTry again.")
+        root.update_idletasks()
+        return
+    elif (not is_email(email)) or (email in {"", "na"}):
+        scrape_info_label.set("\u274C Problem with email")
+        root.update_idletasks()
+        return
     else:
-        scrape_info_label.set("\u2740 Problem with email")
-    root.update_idletasks()
+        scrape_info_label.set("\u2705")
+        root.update_idletasks()
+        return
 
 
 def parse_dob():
@@ -574,8 +577,6 @@ def send_text():
     pya.press("enter")
     time.sleep(1)
     pya.press("enter")
-    pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
-    pya.click()
     scrape_info_label.set("Text sent")
     root.update_idletasks()
 
@@ -583,6 +584,8 @@ def send_text():
 def no_recall():
     global recall_number
     global recall_type
+    scrape_info_label.set("No recall sent -> finish")
+    root.update_idletasks()
     recall_number = "none"
     recall_type = "none"
     pya.click(100, 400)
@@ -610,19 +613,23 @@ def no_recall():
     # button5.config(state="disabled", style="Disabled.TButton")
     # root.update_idletasks()
 
+
 def finish_recall():
     global recall_number
     global recall_type
     set_pickled_list()
+
     day_sent = today.isoformat()
     full_name = pat[0]
     doctor = pat[1]
     with open(disposal_csv_address, "a") as f:
         writer = csv.writer(f)
-        entry = (day_sent, full_name, doctor, recall_number, recall_type)
+        entry = (day_sent, full_name, mrn, doctor, recall_number, recall_type)
         writer.writerow(entry)
     recall_number = "first"
     recall_type = "email"
+    scrape_info_label.set(f"{full_name} finished")
+    root.update_idletasks()
     pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
     pya.click()
     pya.hotkey("alt", "n")
@@ -633,16 +640,17 @@ def finish_recall():
         p.set("Finished")
 
 
-    
-
 def open_letters():
     os.startfile("d:\\john tillet\\source\\active\\recalls\\letters")
 
+
 def reset_program():
-    subprocess.run([sys.executable, "D:\\JOHN TILLET\\source\\active\\recalls\\pickler.py"])
+    subprocess.run(
+        [sys.executable, "D:\\JOHN TILLET\\source\\active\\recalls\\pickler.py"])
     sys.exit(1)
 
-get_pickled_list() # this gets output_list_4
+
+get_pickled_list()  # this gets output_list_4
 
 root = Tk()
 
@@ -762,8 +770,8 @@ else:
     button1.config(state="normal", style="Normal.TButton")
     button2.config(state="normal", style="Normal.TButton")
     n.set("")
-    
-    
+
+
 # button1.config(state="normal", style="Normal.TButton")
 # button2.config(state="disabled", style="Disabled.TButton")
 # button3.config(state="disabled", style="Disabled.TButton")
