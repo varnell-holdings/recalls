@@ -14,8 +14,11 @@ from tkinter import FALSE, Menu, Frame, messagebox
 
 from jinja2 import Environment, FileSystemLoader
 
+from docx import Document
+from docx.shared import Pt
+
 # import pyautogui as pya
-# import pyperclip
+import pyperclip
 from pyisemail import is_email
 
 # pya.PAUSE = 0.1
@@ -30,11 +33,14 @@ if args.test:
     print("Test mode activated")
     csv_address = "d:\\john tillet\\source\\active\\recalls\\test_csv.csv"
     csv_address_2 = "D:\\Nobue\\test_recalls_csv.csv"
+    disposal_csv_address = "d:\\john tillet\\source\\active\\recalls\\test_disposal.csv"
+
 
 else:
     print("No test mode activated")
     csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\recalls_csv.csv"
     csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
+    disposal_csv_address = "d:\\john tillet\\source\\active\\recalls\\disposal.csv"
 
 
 full_path = ""
@@ -44,6 +50,7 @@ email = ""
 phone = ""
 mrn = ""
 dob = ""
+recall_type = "none"
 
 
 ocd_doc_set = {
@@ -132,53 +139,57 @@ def open_bc():
 def scraper(email=False):
     """'"""
     pass
-    # result = "na"
-    # pya.hotkey("ctrl", "c")
-    # result = pyperclip.paste()
-    # if email:
-    #     result = re.split(r"[\s,:/;\\]", result)[0]
-    #     if not is_email(result):
-    #         result = ""
-    # return result
+
+
+#     result = "na"
+#     pya.hotkey("ctrl", "c")
+#     result = pyperclip.paste()
+#     if email:
+#         result = re.split(r"[\s,:/;\\]", result)[0]
+#         if not is_email(result):
+#             result = ""
+#     return result
 
 
 def scrape():
     pass
-    # global mrn
-    # global email
-    # global dob
 
-    # pya.moveTo(100, 450, duration=0.1)
-    # pya.click()
-    # pya.press("up", presses=9)
-    # pya.press("enter")
-    # time.sleep(0.5)
 
-    # pya.moveTo(EMAIL_POS)
-    # pya.doubleClick()
-    # email = scraper()
-    # print(email)
+#     global mrn
+#     global email
+# global dob
 
-    # pya.moveTo(MRN_POS)
-    # pya.doubleClick()
-    # mrn = scraper()
-    # print(mrn)
+# pya.moveTo(100, 450, duration=0.1)
+# pya.click()
+# pya.press("up", presses=9)
+# pya.press("enter")
+# time.sleep(0.5)
 
-    # pya.moveTo(DOB_POS)
-    # pya.doubleClick()
-    # dob = scraper()
-    # print(dob)
+# pya.moveTo(EMAIL_POS)
+# pya.doubleClick()
+# email = scraper()
+# print(email)
 
-    # if (not mrn.isdigit()) or (not parse(dob)):
-    #     scrape_info_label.set("Error in data")
-    #     root.update_idletasks()
-    #     return
+# pya.moveTo(MRN_POS)
+# pya.doubleClick()
+# mrn = scraper()
+# print(mrn)
 
-    # if is_email(email) and email not in {"", "na"}:
-    #     scrape_info_label.set("OK")
-    # else:
-    #     scrape_info_label.set("Problem with email")
-    # root.update_idletasks()
+# pya.moveTo(DOB_POS)
+# pya.doubleClick()
+# dob = scraper()
+# print(dob)
+
+# if (not mrn.isdigit()) or (not parse(dob)):
+#     scrape_info_label.set("Error in data")
+#     root.update_idletasks()
+#     return
+
+# if is_email(email) and email not in {"", "na"}:
+#     scrape_info_label.set("OK")
+# else:
+#     scrape_info_label.set("Problem with email")
+# root.update_idletasks()
 
 
 def parse_dob():
@@ -189,27 +200,28 @@ def parse_dob():
         return False
 
 
-def is_over_75(date_of_birth):
-    """
-    Check if a person is 75 years old or older based on their date of birth.
-
-    Args:
-        date_of_birth (str): Date of birth in format "dd/mm/yyyy"
-
-    Returns:
-        bool: True if aged 75 or over, False otherwise
-    """
-    # Parse the date of birth
-    dob = datetime.datetime.strptime(date_of_birth, "%d/%m/%Y")
-
-    # Calculate age
-    age = today.year - dob.year
-
-    # Adjust if birthday hasn't occurred this year yet
-    if (today.month, today.day) < (dob.month, dob.day):
-        age -= 1
-
-    return age > 75
+def write_csv():
+    day_sent = today.isoformat()
+    with open(csv_address, "a") as f:
+        writer = csv.writer(f, dialect="excel", lineterminator="\n")
+        # name, doctor, phone, mrn, dob, phone, email, first, second, third, gp, attended
+        # - first second and third are dates
+        entry = [
+            pat[0],
+            pat[1],
+            pat[2],
+            mrn,
+            dob,
+            phone,
+            email,
+            day_sent,
+            "",
+            "",
+            "no",
+            "",
+        ]
+        writer.writerow(entry)
+    shutil.copy(csv_address, csv_address_2)
 
 
 def make_html_body(our_content_id):
@@ -236,8 +248,6 @@ def make_html_body(our_content_id):
 
     today_str = today.strftime("%d-%m-%Y")
 
-    over_75 = is_over_75(dob)
-
     path_to_template = "D:\\JOHN TILLET\\source\\active\\recalls"
     loader = FileSystemLoader(path_to_template)
     env = Environment(loader=loader)
@@ -256,43 +266,55 @@ def make_html_body(our_content_id):
         our_content_id=our_content_id,
     )
 
-    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body_1.html", "wt") as f:
+    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body_2.html", "wt") as f:
         f.write(page)
 
 
 def letter_compose():
-    pass
-
-
-def send_text():
+    global recall_type
+    recall_type = "letter"
     full_name = pat[0]
     title = full_name.split()[0]
+    first_name = full_name.split()[1]
     last_name = full_name.split()[-1].title()
+    full_name = f"{title} {first_name} {last_name}"
     doctor = pat[1]
-    message = f"Dear {title} {last_name} just advising you that an email will be sent to you from Dr {doctor} with a reminder that you are now due for your procedure. Please review email and contact our office on 83826622 if you have any queries and for all bookings."
 
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.press("up", presses=3)
-    pya.press("enter")
-    pya.hotkey("alt", "n")
-    pya.moveTo(SMS_POS[0], SMS_POS[1])
-    pya.click()
-    pya.typewrite(message)
-    pya.press("tab")
-    pya.press("enter")
-    pya.press("enter")
+    page = make_letter_text(pat, dob)
 
+    doc = Document(f"d:\\john tillet\\source\\active\\recalls\\headers\\{doctor}.docx")
 
-def recall_type(event):
-    recall_type = rec.get()
-    if recall_type == "GP":
-        button4.config(state="disabled", style="Disabled.TButton")
-        send_text_button.config(state="disabled", style="Disabled.TButton")
-    else:
-        button4.config(state="normal", style="Normal.TButton")
-        send_text_button.config(state="normal", style="Normal.TButton")
+    style = doc.styles["Normal"]
+    font = style.font
+    font.name = "Bookman Old Style"
+    font.size = Pt(12)
+
+    paragraph = doc.add_paragraph()
+
+    # Split the text and add line breaks
+    lines = page.split("\n")
+
+    for i, line in enumerate(lines):
+        print(i, line)
+        run = paragraph.add_run(line)
+        if i < len(lines) - 1:  # Don't add break after last line
+            run.add_break()
+
+    doc.save(f"d:\\john tillet\\source\\active\\recalls\\letters\\{last_name}.docx")
+    write_csv()
+    scrape_info_label.set("Letter made")
     root.update_idletasks()
+
+
+# def recall_type(event):
+#     recall_type = rec.get()
+#     if recall_type == "GP":
+#         button4.config(state="disabled", style="Disabled.TButton")
+#         send_text_button.config(state="disabled", style="Disabled.TButton")
+#     else:
+#         button4.config(state="normal", style="Normal.TButton")
+#         send_text_button.config(state="normal", style="Normal.TButton")
+#     root.update_idletasks()
 
 
 def recall_compose():
@@ -311,7 +333,7 @@ def recall_compose():
     make_html_body(our_content_id)
 
     with open(
-        "D:\\JOHN TILLET\\source\\active\\recalls\\body_1.html", "rt", encoding="cp1252"
+        "D:\\JOHN TILLET\\source\\active\\recalls\\body_2.html", "rt", encoding="cp1252"
     ) as f:
         html_content = f.read()
 
@@ -344,26 +366,35 @@ def recall_compose():
         writer.writerow(entry)
     shutil.copy(csv_address, csv_address_2)
 
-    # config gui
-    p.set("")
-    # button3.config(state="normal", style="Normal.TButton")
-    # button4.config(state="disabled", style="Disabled.TButton")
-    # button5.config(state="disabled", style="Disabled.TButton")
-    # root.update_idletasks()
+
+def no_recall():
+    pass
+    proc.set("Procedure")
+    # close bc
 
 
 def finish():
     """This will close Blue Chip and write to
     disposal.csv and reset buttons above the line"""
-    doc.set("Doctor")
-    rec.set("Recall Type")
+    global recall_type
+    day_sent = today.isoformat()
+    full_name = ""  # get this from scraper
+    doctor = doc.get()
+    recall_number = rec.get()
+    with open(disposal_csv_address, "a") as f:
+        writer = csv.writer(f)
+        entry = (day_sent, full_name, doctor, recall_number, recall_type)
+        writer.writerow(entry)
+    recall_type = "none"
+    # doc.set("Doctor")
+    # rec.set("Recall Type")
     proc.set("Procedure")
 
 
 root = Tk()
 
 doc = StringVar()  # doctor for recall
-rec = StringVar()  # type of recall ie 2 or 3
+rec = StringVar()  # number of recall ie 2 or 3
 proc = StringVar()  # type of procedure
 scrape_info_label = StringVar()
 
@@ -405,7 +436,7 @@ doc_box["state"] = "readonly"
 doc_box.grid(column=0, row=0, sticky=W)
 
 rec_box = ttk.Combobox(topframe, textvariable=rec)
-rec_box["values"] = ["2", "3"]
+rec_box["values"] = ["second", "third"]
 rec_box["state"] = "readonly"
 rec_box.grid(column=0, row=1, sticky=W)
 
@@ -433,12 +464,12 @@ letter_button = ttk.Button(
 )
 letter_button.grid(column=1, row=2, sticky=E)
 
-send_text_button = ttk.Button(bottomframe, text="Send text", command=send_text)
-send_text_button.grid(column=0, row=3, sticky=W)
+no_recall_button = ttk.Button(bottomframe, text="No recall", command=no_recall)
+no_recall_button.grid(column=1, row=3, sticky=W)
 
 
 finish_button = ttk.Button(bottomframe, text="Finish patient", command=finish)
-finish_button.grid(column=0, row=4, sticky=W)
+finish_button.grid(column=0, row=3, sticky=W)
 
 for child in topframe.winfo_children():
     child.grid_configure(padx=5, pady=20)
@@ -450,7 +481,7 @@ for child in bottomframe.winfo_children():
 scrape_info_label.set("")
 
 doc.set("Doctor")
-rec.set("Recall Type")
+rec.set("Recall Number")
 proc.set("Procedure")
 
 root.attributes("-topmost", True)
