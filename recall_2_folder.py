@@ -302,6 +302,7 @@ def scraper(email=False):
             if is_email(object):
                 return object
             return ""
+    return result
 
 
 def scrape():
@@ -350,44 +351,6 @@ def scrape():
         root.update_idletasks()
 
 
-def make_html_body(our_content_id):
-    """Uses jinja2 to construct the html body of the email. Saves in body_.html"""
-    full_name = pat[0]
-    title = full_name.split()[0]
-    first_name = full_name.split()[1]
-    last_name = full_name.split()[-1].title()
-    full_name = f"{title} {first_name} {last_name}"
-
-    doctor = pat[1]
-
-    doc_first_name = full_doc_dict[doctor]
-
-    procedure = pat[3]
-    if procedure == "COL/PE":
-        procedure = "Gastroscopy and Colonoscopy"
-    if procedure == "Panendoscopy":
-        procedure = "Gastroscopy"
-
-    path_to_template = "D:\\JOHN TILLET\\source\\active\\recalls\\templates"
-    loader = FileSystemLoader(path_to_template)
-    env = Environment(loader=loader)
-    template_name = "email_1_template.html"
-    template = env.get_template(template_name)
-    page = template.render(
-        today_date=today_str,
-        full_name=full_name,
-        title=title,
-        last_name=last_name,
-        doc_first_name=doc_first_name,
-        doctor=doctor,
-        procedure=procedure,
-        our_content_id=our_content_id,
-    )
-
-    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body_1.html", "wt") as f:
-        f.write(page)
-
-
 def write_csv(n):
     day_sent = today.isoformat()
     procedure = pat[3]
@@ -418,6 +381,46 @@ def write_csv(n):
         writer.writerow(entry)
     shutil.copy(csv_address, csv_address_2)
 
+def make_html_body(n, our_content_id):
+    """Uses jinja2 to construct the html body of the email. Saves in body_.html"""
+    full_name = pat[0]
+    title = full_name.split()[0]
+    first_name = full_name.split()[1]
+    last_name = full_name.split()[-1].title()
+    full_name = f"{title} {first_name} {last_name}"
+
+    doctor = pat[1]
+
+    doc_first_name = full_doc_dict[doctor]
+
+    procedure = pat[3]
+    if procedure == "COL/PE":
+        procedure = "Gastroscopy and Colonoscopy"
+    if procedure == "Panendoscopy":
+        procedure = "Gastroscopy"
+
+    path_to_template = "D:\\JOHN TILLET\\source\\active\\recalls\\templates"
+    loader = FileSystemLoader(path_to_template)
+    env = Environment(loader=loader)
+    template_name = f"email_{n}_template.html"
+    template = env.get_template(template_name)
+    page = template.render(
+        today_date=today_str,
+        full_name=full_name,
+        title=title,
+        last_name=last_name,
+        doc_first_name=doc_first_name,
+        doctor=doctor,
+        procedure=procedure,
+        our_content_id=our_content_id,
+    )
+
+    with open(f"D:\\JOHN TILLET\\source\\active\\recalls\\body_{n}.html", "wt") as f:
+        f.write(page)
+
+
+
+
 
 def email_compose(n):
     outlook = win32.Dispatch("Outlook.Application")
@@ -432,7 +435,7 @@ def email_compose(n):
     our_content_id = "my_logo_123"
     attachment.PropertyAccessor.SetProperty(CONTENT_ID_PROPERTY, our_content_id)
 
-    make_html_body(our_content_id)
+    make_html_body(n, our_content_id)
 
     with open(
         f"D:\\JOHN TILLET\\source\\active\\recalls\\body_{n}.html",
@@ -579,7 +582,7 @@ p = StringVar()  # current patient name
 scrape_info_label = StringVar()
 
 root.geometry("350x450+840+50")
-root.title("First Recalls")
+root.title("Folder Recalls")
 root.option_add("*(tearOff)", FALSE)
 
 menubar = Menu(root)
