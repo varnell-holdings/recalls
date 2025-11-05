@@ -39,13 +39,12 @@ if args.test:
     print("Test mode activated")
     csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\test_csv.csv"
     csv_address_2 = "D:\\Nobue\\test_recalls_csv.csv"
-    disposal_csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\test_disposal.csv"
 
 else:
     print("No test mode activated")
     csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\csv\\recalls_csv.csv"
     csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
-    disposal_csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\disposal.csv"
+
 
 if args.nopickle:
     print("No pickling mode")
@@ -60,8 +59,7 @@ email = ""
 phone = ""
 mrn = ""
 dob = ""
-recall_number = "first"
-recall_type = "email"
+first_run = True
 
 
 output_list_4 = []
@@ -200,6 +198,7 @@ def next_patient():
     global output_list_4
     global pat
     global phone
+    global first_run
     if not args.nopickle:
         get_pickled_list()  # this gets output_list_4
     try:
@@ -216,10 +215,12 @@ def next_patient():
         root.update_idletasks()
 
         phone = pat[2].replace("-", "")
-        if phone[0] == "0":
+        if phone[0] == "0" and not first_run:
             open_bc_by_phone()
-        else:
+        elif not first_run:
             open_bc_by_name()
+        else:
+            first_run = False
 
     except IndexError:
         p.set("Finished!")
@@ -295,6 +296,7 @@ def scraper(email=False):
             if is_email(object):
                 return object
             return ""
+    return result
 
 
 def scrape():
@@ -431,25 +433,30 @@ def make_html_body(our_content_id):
         f.write(page)
 
 
-def write_csv():
+def write_csv(attended):
     day_sent = today.isoformat()
+    name = pat[0]
+    doctor = pat[1]
+    procedure = pat[3]
+    if attended == "yes":
+        first = ""
+    else:
+        first = day_sent
     with open(csv_address, "a") as f:
         writer = csv.writer(f, dialect="excel", lineterminator="\n")
-        # name, doctor, phone, mrn, dob, phone, email, first, second, third, gp, attended
+        # name, doctor, mrn, dob, procedure, email, first, second, third, attended
         # - first second and third are dates
         entry = [
-            pat[0],
-            pat[1],
-            pat[2],
+            name,
+            doctor,
             mrn,
             dob,
-            phone,
+            procedure,
             email,
-            day_sent,
+            first,
             "",
             "",
-            "no",
-            "",
+            attended,
         ]
         writer.writerow(entry)
     shutil.copy(csv_address, csv_address_2)
@@ -483,7 +490,7 @@ def recall_compose():
     # # Or display it for review before sending
     mail.Display()
     # write to csv
-    write_csv()
+    write_csv(attended="no")
 
     # config
     scrape_info_label.set("Email made")
@@ -562,9 +569,11 @@ def letter_compose():
 
     doc.save(f"d:\\john tillet\\source\\active\\recalls\\letters\\{
              last_name}.docx")
-    write_csv()
-    scrape_info_label.set("Letter made")
+    write_csv(attended="no")
+    scrape_info_label.set("Letter made\nCancel manually")
     root.update_idletasks()
+    os.startfile(f"d:\\john tillet\\source\\active\\recalls\\letters\\{
+        last_name}.docx")
 
 
 def send_text():
@@ -596,6 +605,7 @@ def send_text():
 def no_recall():
     global recall_number
     global recall_type
+    write_csv(attended="yes")
     scrape_info_label.set("No recall sent -> finish")
     root.update_idletasks()
     recall_number = "none"
@@ -610,20 +620,9 @@ def no_recall():
 
 
 def close_out():
-    global recall_number
-    global recall_type
     if not args.nopickle:
         set_pickled_list()
-
-    day_sent = today.isoformat()
     full_name = pat[0]
-    doctor = pat[1]
-    with open(disposal_csv_address, "a") as f:
-        writer = csv.writer(f, dialect="excel", lineterminator="\n")
-        entry = (day_sent, full_name, mrn, doctor, recall_number, recall_type)
-        writer.writerow(entry)
-    recall_number = "first"
-    recall_type = "email"
     scrape_info_label.set(f"{full_name} finished")
     root.update_idletasks()
     pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
@@ -721,7 +720,7 @@ label2.grid(column=1, row=1, sticky=E)
 
 
 label3 = ttk.Label(bottomframe, textvariable=p)
-label3.grid(column=0, row=0, sticky=E)
+label3.grid(column=0, row=0, sticky=W)
 
 open_by_name_button = ttk.Button(
     bottomframe, text="Open by name", command=open_bc_by_name_short
@@ -763,6 +762,7 @@ if output_list_4:
     button2.config(state="disabled", style="Disabled.TButton")
     num_to_do = len(output_list_4)
     n.set(f"{num_to_do} patients to do.")
+    next_patient()
 else:
     button1.config(state="normal", style="Normal.TButton")
     button2.config(state="normal", style="Normal.TButton")
