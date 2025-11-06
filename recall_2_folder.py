@@ -38,20 +38,17 @@ if args.test:
     print("Test mode activated")
     csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\test_csv.csv"
     csv_address_2 = "D:\\Nobue\\test_recalls_csv.csv"
-    disposal_csv_address = (
-        "d:\\john tillet\\source\\active\\recalls\\csv\\test_disposal.csv"
-    )
 
 else:
     print("No test mode activated")
     csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\csv\\recalls_csv.csv"
     csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
-    disposal_csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\disposal.csv"
+
 
 if args.nopickle:
     print("No pickling mode")
 else:
-    pickle_address = "D:\\JOHN TILLET\\source\\active\\recalls\\pickled_list"
+    pickle_address = "D:\\JOHN TILLET\\source\\active\\recalls\\pickled_list_folder"
 
 full_path = ""
 old_path = ""
