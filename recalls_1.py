@@ -41,7 +41,7 @@ if args.test:
     csv_address_2 = "D:\\Nobue\\test_recalls_csv.csv"
 
 else:
-    print("No test mode activated")
+    print("Not in  test mode")
     csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\csv\\recalls_csv.csv"
     csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
 
@@ -181,12 +181,14 @@ def extract():
             output_list_4.append(local_list)
 
     output_list_4.reverse()
+    print(output_list_4)
     num_to_do = len(output_list_4)
     n.set(f"{num_to_do} patients to do.")
     filename = os.path.splitext(os.path.basename(full_path))[0]
     f.set(f"Working on {filename}.")
     if not args.nopickle:
         set_pickled_list()
+    print("line 191")
     button1.config(state="disabled", style="Disabled.TButton")
     button2.config(state="disabled", style="Disabled.TButton")
     next_patient()
@@ -203,24 +205,7 @@ def next_patient():
         get_pickled_list()  # this gets output_list_4
     try:
         pat = output_list_4.pop()
-        print(pat)
-        name = pat[0]
-        phone = pat[2]
-        name_for_label = f"{name}\n{phone}"
-        p.set(name_for_label)
-
-        num_to_do = len(output_list_4)
-        n.set(f"{num_to_do} patients to do.")
-        scrape_info_label.set("")
-        root.update_idletasks()
-
-        phone = pat[2].replace("-", "")
-        if phone[0] == "0" and not first_run:
-            open_bc_by_phone()
-        elif not first_run:
-            open_bc_by_name()
-        else:
-            first_run = False
+        
 
     except IndexError:
         p.set("Finished!")
@@ -232,6 +217,25 @@ def next_patient():
         button2.config(state="normal", style="Normal.TButton")
 
         output_list_4 = []
+    
+    print(pat)
+    name = pat[0]
+    phone = pat[2]
+    name_for_label = f"{name}\n{phone}"
+    p.set(name_for_label)
+
+    num_to_do = len(output_list_4)
+    n.set(f"{num_to_do} patients to do.")
+    scrape_info_label.set("")
+    root.update_idletasks()
+    print("line 218")
+    phone = pat[2].replace("-", "")
+    if phone and phone[0] == "0" and not first_run:
+        open_bc_by_phone()
+    elif not first_run:
+        open_bc_by_name()
+    else:
+        first_run = False
 
 
 def open_bc_by_name():
@@ -291,7 +295,7 @@ def scraper(email=False):
     pya.hotkey("ctrl", "c")
     result = pyperclip.paste()
     if email:
-        result = re.split(r"[\s,:/;\\]", result)[0]
+        result = re.split(r"[\s,:/;\\*]", result)[0]
         for object in result:
             if is_email(object):
                 return object
@@ -434,10 +438,13 @@ def make_html_body(our_content_id):
 
 
 def write_csv(attended):
+    global email
     day_sent = today.isoformat()
     name = pat[0]
     doctor = pat[1]
     procedure = pat[3]
+    if not is_email(email):
+        email = ""
     if attended == "yes":
         first = ""
     else:
