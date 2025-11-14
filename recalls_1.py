@@ -348,13 +348,10 @@ def scrape():
         scrape_info_label.set("\u2705")
         root.update_idletasks()
 
-        doctor = pat[1]
-        if doctor != "Mill":
-            scrape_info_label.set("Sending text")
-            root.update_idletasks()
-            send_text()
-        else:
-            pya.alert("Dr Mill patient. Mark recall manually")
+        scrape_info_label.set("Sending text")
+        root.update_idletasks()
+        send_text()
+
         recall_compose()
         return
 
