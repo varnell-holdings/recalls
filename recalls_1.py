@@ -230,12 +230,19 @@ def next_patient():
     root.update_idletasks()
     print("line 218")
     phone = pat[2].replace("-", "")
-    if phone and phone[0] == "0" and not first_run:
-        open_bc_by_phone()
-    elif not first_run:
-        open_bc_by_name()
-    else:
+    
+    if first_run:
+        pya.alert("Make sure Blue Chip is open then press OK.")
         first_run = False
+        if phone and phone[0] == "0":
+            open_bc_by_phone()
+        else:
+            open_bc_by_name()
+    else:
+        if phone and phone[0] == "0":
+            open_bc_by_phone()
+        else:
+            open_bc_by_name()
 
 
 def open_bc_by_name():
@@ -489,10 +496,10 @@ def recall_compose():
 
     mail.HTMLBody = html_content
     # # Uncomment to actually send the email
-    # # mail.Send()
+    mail.Send()
 
     # # Or display it for review before sending
-    mail.Display()
+    # mail.Display()
     # write to csv
     write_csv(attended="no")
 
@@ -621,6 +628,7 @@ def no_recall():
     pya.press("enter")
 
     p.set("")
+    finish_recall()
 
 
 def close_out():
