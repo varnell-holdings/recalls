@@ -60,6 +60,7 @@ phone = ""
 mrn = ""
 dob = ""
 first_run = True
+manual = False
 
 
 output_list_4 = []
@@ -201,10 +202,12 @@ def next_patient():
     global pat
     global phone
     global first_run
+    global manual
     if not args.nopickle:
         get_pickled_list()  # this gets output_list_4
     try:
         pat = output_list_4.pop()
+        manual = False
         
 
     except IndexError:
@@ -495,11 +498,10 @@ def recall_compose():
         html_content = f.read()
 
     mail.HTMLBody = html_content
-    # # Uncomment to actually send the email
-    mail.Send()
-
-    # # Or display it for review before sending
-    # mail.Display()
+    if not manual:
+        mail.Send()
+    else:
+        mail.Display()
     # write to csv
     write_csv(attended="no")
 
@@ -604,13 +606,20 @@ def send_text():
     pya.moveTo(SMS_POS[0], SMS_POS[1])
     pya.click()
     pya.typewrite(message)
-    time.sleep(1)
+    time.sleep(3)
     pya.press("tab")
     pya.press("enter")
-    time.sleep(1)
+    time.sleep(3)
     pya.press("enter")
     scrape_info_label.set("Text sent - open Outlook")
     root.update_idletasks()
+
+def manual_send():
+    global manual
+    manual = True
+    send_text()
+    recall_compose()
+    return
 
 
 def no_recall():
@@ -624,7 +633,7 @@ def no_recall():
     pya.click(100, 400)
     pya.press("up", presses=3)
     pya.press("enter")
-    pya.hotkey("alt", "m")
+    pya.hotkey("alt", "n")
     pya.press("enter")
 
     p.set("")
@@ -737,7 +746,7 @@ label3.grid(column=0, row=0, sticky=W)
 open_by_name_button = ttk.Button(
     bottomframe, text="Open by name", command=open_bc_by_name_short
 )
-open_by_name_button.grid(column=1, row=0, sticky=W)
+open_by_name_button.grid(column=1, row=0, sticky=E)
 
 
 scrape_button = ttk.Button(bottomframe, text="Text & Email", command=scrape)
@@ -747,20 +756,25 @@ scrape_label = ttk.Label(bottomframe, textvariable=scrape_info_label)
 scrape_label.grid(column=0, row=2, sticky=E)
 
 
-letter_button = ttk.Button(
-    bottomframe, text="Make Recall letter", command=letter_compose
+manual_button = ttk.Button(
+    bottomframe, text="Manual Send", command=manual_send
 )
-letter_button.grid(column=1, row=1, sticky=E)
+manual_button.grid(column=1, row=1, sticky=E)
+
+letter_button = ttk.Button(
+    bottomframe, text="Recall letter", command=letter_compose
+)
+letter_button.grid(column=1, row=2, sticky=E)
 
 
 button5 = ttk.Button(bottomframe, text="No Recall", command=no_recall)
-button5.grid(column=1, row=2, sticky=E)
+button5.grid(column=1, row=3, sticky=E)
 
 button_6 = ttk.Button(bottomframe, text="Finish & new", command=finish_recall)
 button_6.grid(column=0, row=3, sticky=W)
 
 button_7 = ttk.Button(bottomframe, text="Finish & exit", command=finish_exit)
-button_7.grid(column=1, row=3, sticky=E)
+button_7.grid(column=1, row=4, sticky=E)
 
 for child in mainframe.winfo_children():
     child.grid_configure(padx=5, pady=10)
