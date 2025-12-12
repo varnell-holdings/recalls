@@ -606,7 +606,7 @@ def send_text():
     pya.moveTo(SMS_POS[0], SMS_POS[1])
     pya.click()
     pya.typewrite(message)
-    time.sleep(3)
+    time.sleep(2)
     pya.press("tab")
     pya.press("enter")
     time.sleep(3)
