@@ -13,7 +13,6 @@ or they are marked as bo recall required. The program then closes that Blue Chip
 import csv
 import datetime
 import os
-import sys
 from tkinter import FALSE, E, Frame, Menu, N, S, StringVar, Tk, W, messagebox, ttk
 
 # import win32com.client as win32  # pip install pywin32
@@ -443,7 +442,7 @@ def letter_compose():
     doc.save(f"{LETTERS_PATH}\\{last_name}.docx")
     write_csv("no")
     os.startfile(f"{LETTERS_PATH}\\{last_name}.docx")
-    # Note: next_patient() not called - secretary uses Finish & new after printing envelope
+    finish_new_button.grid()
 
 
 def send_recall():
@@ -489,14 +488,8 @@ def next_patient():
 
 def finish_recall():
     """Close current patient and open the next one."""
-    # close_out()
+    finish_new_button.grid_remove()
     next_patient()
-
-
-def finish_exit():
-    """Close current patient and exit the program."""
-    close_out()
-    sys.exit(1)
 
 
 def open_letters():
@@ -564,9 +557,6 @@ no_recall_button.grid(column=0, row=1, sticky=W)
 finish_new_button = ttk.Button(bottom_frame, text="Finish & next", command=finish_recall)
 finish_new_button.grid(column=0, row=2, sticky=W)
 
-finish_exit_button = ttk.Button(bottom_frame, text="Finish & exit", command=finish_exit)
-finish_exit_button.grid(column=1, row=2, sticky=E)
-
 for child in main_frame.winfo_children():
     child.grid_configure(padx=5, pady=5)
 
@@ -575,6 +565,8 @@ for child in top_frame.winfo_children():
 
 for child in bottom_frame.winfo_children():
     child.grid_configure(padx=5, pady=20)
+
+finish_new_button.grid_remove()
 
 recall_type_combo.set("")
 patient_count_var.set("Choose type of recall to start!")
