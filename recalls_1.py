@@ -355,14 +355,14 @@ def scrape():
         root.update_idletasks()
         return
     else:
-        scrape_info_label.set("\u2705")
-        root.update_idletasks()
-
         scrape_info_label.set("Sending text")
         root.update_idletasks()
+        
         send_text()
-
+        time.sleep(1)
         recall_compose()
+        time.sleep(1)
+        finish_recall()
         return
 
 
@@ -445,11 +445,17 @@ def make_html_body(our_content_id):
 
 
 def write_csv(attended):
+    global mrn
+    global dob
     global email
-    day_sent = today.isoformat()
+    day_sent = today.strftime("%d-%m-%Y")
     name = pat[0]
     doctor = pat[1]
     procedure = pat[3]
+    if not mrn:
+        mrn = ""
+    if not dob:
+        dob = ""
     if not is_email(email):
         email = ""
     if attended == "yes":
