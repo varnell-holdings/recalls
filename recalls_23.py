@@ -10,19 +10,25 @@ or they are marked as bo recall required. The program then closes that Blue Chip
 
 """
 
+import argparse
 import csv
 import datetime
 import os
+from pathlib import Path
+import shutil
+import time
 from tkinter import FALSE, E, Frame, Menu, N, S, StringVar, Tk, W, messagebox, ttk
 
-# import win32com.client as win32  # pip install pywin32
+import win32com.client as win32  # pip install pywin32
 from dateutil.parser import parse
 from docx import Document
 from docx.shared import Pt
 from jinja2 import Environment, FileSystemLoader
 
-# import pyautogui as pya
+import pyautogui as pya
+import pyperclip
 
+base_path = Path("d:\\john tillet\\source\\active\\recalls")
 
 # Get today's date
 today = datetime.date.today()
@@ -48,21 +54,76 @@ TEMPLATES_PATH = f"{RECALLS_BASE_PATH}\\templates"
 LETTERS_PATH = f"{RECALLS_BASE_PATH}\\letters"
 HEADERS_PATH = f"{RECALLS_BASE_PATH}\\headers"
 LOGO_PATH = f"{RECALLS_BASE_PATH}\\dec_logo.jpg"
+CSV_PATH = f"{RECALLS_BASE_PATH}\\csv"
+
+
+episodes_path = "D:\\JOHN TILLET\\EPISODE_DATA\\episodes.csv"
+
+parser = argparse.ArgumentParser(description="Recalls - Second & Third")
+parser.add_argument("-t", "--test", action="store_true", help="Run the test")
+
+args = parser.parse_args()
+if args.test:
+    print("Test mode activated")
+    recalls_csv_path = CSV_PATH + "\\test_csv.csv"
+    csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
+
+
+else:
+    print("Not in  test mode")
+    recalls_csv_path = CSV_PATH + "\\recalls_csv.csv"
+    csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
 
 # Screen position for closing Blue Chip window (varies by user/screen)
 user = os.getenv("USERNAME")
-if user == "John":
-    CLOSE_POS = (1020, 120)
-elif user == "John2":
-    CLOSE_POS = (774, 96)
-elif user == "Typing2":
-    CLOSE_POS = (780, 96)
 
-recalls_path = "recalls_csv.csv"
-episodes_path = "episodes.csv"
+if user == "John":
+    RED_BAR_POS = (280, 790)
+    TITLE_POS = (230, 170)
+    MRN_POS = (740, 315)
+    POST_CODE_POS = (610, 355)
+    DOB_POS = (750, 220)
+    FUND_NO_POS = (770, 703)
+    CLOSE_POS = (1020, 120)
+    SMS_POS = (485, 735)
+    EMAIL_POS = (600, 510)
+elif user == "John2":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (600, 250)
+    POST_CODE_POS = (490, 284)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (774, 96)
+    SMS_POS = (360, 630)
+    EMAIL_POS = (450, 395)
+elif user == "Typing2":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (780, 96)
+    SMS_POS = (360, 630)
+    EMAIL_POS = (450, 400)
+elif user == "Typing1":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (780, 96)
+    SMS_POS = (360, 630)
+    EMAIL_POS = (450, 400)
+
+
 patients_to_recall = []
 current_record = {}
 recall = ""  # 'Second' or 'Third'
+first_run = True
+letter = False
 
 
 def load_recalls(path):
@@ -120,14 +181,14 @@ def get_latest_recall_date(record):
     return None
 
 
-def update_recalls_with_episodes(recalls_path, episodes_path):
+def update_recalls_with_episodes(recalls_csv_path, episodes_path):
     """
     Check recalls against episodes and mark patients as attended
     if they've had a procedure after their last recall.
 
     Returns the updated recalls dict and count of records changed.
     """
-    recalls = load_recalls(recalls_path)
+    recalls = load_recalls(recalls_csv_path)
     episodes = load_episode_dates(episodes_path)
 
     updated_count = 0
@@ -149,7 +210,8 @@ def update_recalls_with_episodes(recalls_path, episodes_path):
                     record["attended"] = "yes"
                     updated_count += 1
                     print(
-                        f"  Updated: {record['name']} (MRN: {mrn}) - recall: {latest_recall}, episode: {episode_date}"
+                        f"  Updated: {record['name']} (MRN: {
+                            mrn}) - recall: {latest_recall}, episode: {episode_date}"
                     )
                     break
 
@@ -253,9 +315,24 @@ def parse_patient_name(full_name):
     return title, first_name, last_name
 
 
-def open_blue_chip(record):
+def open_blue_chip():
     """Open Blue Chip CMS with the patient's MRN."""
-    pass
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.hotkey("ctrl", "o")
+    pya.hotkey("alt", "b")
+    time.sleep(0.2)
+
+    pya.press("down", presses=1)
+
+    pya.hotkey("shift", "tab")
+    pya.hotkey("shift", "tab")
+    pya.typewrite(current_record['mrn'])
+    pya.press("enter")
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.press("up", presses=4)
+    pya.press("enter")
 
 
 def process_csv(event):
@@ -266,14 +343,15 @@ def process_csv(event):
     if recall == "Second":
         print("Loading and checking recalls against episodes...")
         recalls, updated_count = update_recalls_with_episodes(
-            recalls_path, episodes_path
+            recalls_csv_path, episodes_path
         )
 
         print(
-            f"Found {updated_count} patients who have attended since their last recall."
+            f"Found {
+                updated_count} patients who have attended since their last recall."
         )
 
-        save_recalls(recalls, recalls_path)
+        save_recalls(recalls, recalls_csv_path)
         print("Saved updated recalls.")
 
         # Get patients needing second recall
@@ -289,12 +367,78 @@ def process_csv(event):
             method = "email" if email and "@" in email else "letter"
             current_patient_var.set(f"{current_record['name']} ({method})")
             print(
-                f"Processing: {current_record['name']} (MRN: {current_record['mrn']})"
+                f"Processing: {current_record['name']
+                               } (MRN: {current_record['mrn']})"
             )
-            open_blue_chip(current_record)
+            # open_blue_chip()
 
     else:
         messagebox.showinfo(message="Can only do second recalls currently")
+
+
+def scraper():
+    """'"""
+    result = "na"
+    pya.hotkey("ctrl", "c")
+    result = pyperclip.paste()
+
+    return result
+
+
+def postcode_to_state(postcode):
+    post_dic = {"3": "VIC", "4": "QLD", "5": "SA", "6": "WA", "7": "TAS"}
+
+    try:
+        if postcode[0] == "0":
+            if postcode[:2] in {"08", "09"}:
+                return "NT"
+            else:
+                return ""
+        elif postcode[0] in {"0", "1", "8", "9"}:
+            return ""
+        elif postcode[0] == "2":
+            if (2600 <= int(postcode) <= 2618) or postcode[:2] == 29:
+                return "ACT"
+            else:
+                return "NSW"
+        else:
+            return post_dic[postcode[0]]
+    except Exception:
+        return ""
+
+
+def address_scrape():
+    """Scrape address from blue chip.
+    Used if billing anaesthetist.
+    """
+    # need to work out how to click/tab here from dob box
+    pya.moveTo(100, 450, duration=0.1)
+    pya.click()
+    pya.hotkey("alt", "b")
+    if user == "Typing2":
+        pya.press("tab", presses=3)
+    else:
+        pya.press("tab", presses=2)
+    street = scraper()
+    street = street.replace(",", "")
+
+    pya.press("tab")
+    pya.press("tab")
+    suburb = scraper()
+
+    # enable_mouse()
+    pya.moveTo(POST_CODE_POS, duration=0.1)
+    x1, y1 = POST_CODE_POS
+    # disable_mouse(x1, y1, x1 + 1, y1 + 1)
+    pya.doubleClick()
+    postcode = scraper()
+
+    state = postcode_to_state(postcode)
+
+    address1 = f"{street}"
+    address2 = f"{suburb} {state} {postcode}"
+
+    return address1, address2
 
 
 def write_csv(attended):
@@ -303,7 +447,7 @@ def write_csv(attended):
     attended='no' - recall sent, write today's date to second/third column
     attended='yes' - no recall needed, mark as attended
     """
-    recalls = load_recalls(recalls_path)
+    recalls = load_recalls(recalls_csv_path)
     mrn = current_record["mrn"]
 
     if attended == "no":
@@ -315,7 +459,8 @@ def write_csv(attended):
     else:
         recalls[mrn]["attended"] = "yes"
 
-    save_recalls(recalls, recalls_path)
+    save_recalls(recalls, recalls_csv_path)
+    shutil.copy(recalls_csv_path, csv_address_2)
     print(f"Updated CSV for {current_record['name']} (MRN: {mrn})")
 
 
@@ -366,7 +511,8 @@ def email_compose():
     attachment = mail.Attachments.Add(LOGO_PATH)
     CONTENT_ID_PROPERTY = "http://schemas.microsoft.com/mapi/proptag/0x3712001F"
     our_content_id = "my_logo_123"
-    attachment.PropertyAccessor.SetProperty(CONTENT_ID_PROPERTY, our_content_id)
+    attachment.PropertyAccessor.SetProperty(
+        CONTENT_ID_PROPERTY, our_content_id)
 
     make_html_body(our_content_id)
 
@@ -384,11 +530,11 @@ def email_compose():
 
     # write to csv
     write_csv("no")
+    current_patient_var.set("Recall sent by email")
 
-    next_patient()
 
 
-def make_letter_text():
+def make_letter_text(address1, address2):
     """Generate letter text from template using current_record."""
     full_name = current_record['name']
     title, first_name, last_name = parse_patient_name(full_name)
@@ -399,7 +545,7 @@ def make_letter_text():
     loader = FileSystemLoader(TEMPLATES_PATH)
     env = Environment(loader=loader)
     if recall == "Second":
-        template_name = "letter_2_template.txt"
+        template_name = "new_letter_2_template.txt"
     else:
         template_name = "letter_3_template.txt"
     template = env.get_template(template_name)
@@ -408,6 +554,8 @@ def make_letter_text():
         full_name=full_name,
         title=title,
         last_name=last_name,
+        address1=address1,
+        address2=address2,
         doctor=doctor,
         procedure=procedure,
     )
@@ -419,7 +567,7 @@ def letter_compose():
     full_name = current_record['name']
     title, first_name, last_name = parse_patient_name(full_name)
     doctor = current_record['doctor']
-
+    address1, address2 = address_scrape()
     page = make_letter_text()
 
     doc = Document(f"{HEADERS_PATH}\\{doctor}.docx")
@@ -439,57 +587,73 @@ def letter_compose():
         if i < len(lines) - 1:  # Don't add break after last line
             run.add_break()
 
-    doc.save(f"{LETTERS_PATH}\\{last_name}.docx")
+    folder = base_path / "letters" / today.isoformat()
+    folder.mkdir(parents=True, exist_ok=True)
+    doc.save(folder / f"{last_name}.docx")
     write_csv("no")
-    os.startfile(f"{LETTERS_PATH}\\{last_name}.docx")
-    finish_new_button.grid()
+    current_patient_var.set("Recall sent by letter")
+
 
 
 def send_recall():
     """Send recall via email if available, otherwise compose letter."""
+    global letter
     email = current_record["email"].strip()
     if email and "@" in email:
         email_compose()
     else:
+        letter = True
         letter_compose()
 
 
 def no_recall():
     """Mark patient as attended (no recall needed)."""
     write_csv("yes")
-    # close_out()
-    next_patient()
+
+
 
 
 def close_out():
+    global first_run
+    global letter
     """Close the current patient file in Blue Chip using pyautogui."""
-    pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
-    pya.click()
-    pya.hotkey("alt", "n")
+    if not first_run:
+        pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
+        pya.click()
+        if letter:
+            pya.hotkey("alt", "n")
+
 
 
 def next_patient():
     """Pop next patient from list and open in Blue Chip."""
     global current_record
+    global letter
+    global first_run
+    
+    letter = False
 
-    if patients_to_recall:
+    close_out()
+    
+    print(patients_to_recall)
+
+    if patients_to_recall and not first_run:
         current_record = patients_to_recall.pop()
         email = current_record["email"].strip()
         method = "email" if email and "@" in email else "letter"
         current_patient_var.set(f"{current_record['name']} ({method})")
         patient_count_var.set(f"{len(patients_to_recall)} patients to process")
-        print(f"Processing: {current_record['name']} (MRN: {current_record['mrn']})")
-        open_blue_chip(current_record)
+        print(f"Processing: {
+              current_record['name']} (MRN: {current_record['mrn']})")
+        open_blue_chip()
+    elif patients_to_recall and first_run:
+        first_run = False
+        open_blue_chip()
+        next_var.set("Next")
     else:
         current_record = {}
         current_patient_var.set("Finished!")
         patient_count_var.set("0 patients to process")
-
-
-def finish_recall():
-    """Close current patient and open the next one."""
-    finish_new_button.grid_remove()
-    next_patient()
 
 
 def open_letters():
@@ -497,13 +661,14 @@ def open_letters():
     os.startfile(LETTERS_PATH)
 
 
-messagebox.showinfo(message="Make sure Blue Chip is open then press OK.")
+# messagebox.showinfo(message="Make sure Blue Chip is open then press OK.")
 
 root = Tk()
 
 recall_type_var = StringVar()
 patient_count_var = StringVar()
 current_patient_var = StringVar()
+next_var = StringVar()
 
 root.geometry("350x450+840+50")
 root.title("Second and Third Recalls")
@@ -536,7 +701,8 @@ bottom_frame.columnconfigure(0, weight=1)
 bottom_frame.rowconfigure(0, weight=1)
 
 
-recall_type_combo = ttk.Combobox(top_frame, textvariable=recall_type_var, width=30)
+recall_type_combo = ttk.Combobox(
+    top_frame, textvariable=recall_type_var, width=30)
 recall_type_combo["values"] = ["Second", "Third"]
 recall_type_combo.grid(column=0, row=0, sticky=W)
 recall_type_combo["state"] = "readonly"
@@ -545,16 +711,19 @@ recall_type_combo.bind("<<ComboboxSelected>>", process_csv)
 patient_count_label = ttk.Label(top_frame, textvariable=patient_count_var)
 patient_count_label.grid(column=0, row=1, sticky=W)
 
-send_recall_button = ttk.Button(bottom_frame, text="Send recall", command=send_recall)
+send_recall_button = ttk.Button(
+    bottom_frame, text="Send recall", command=send_recall)
 send_recall_button.grid(column=0, row=0, sticky=W)
 
-current_patient_label = ttk.Label(bottom_frame, textvariable=current_patient_var)
+current_patient_label = ttk.Label(
+    bottom_frame, textvariable=current_patient_var)
 current_patient_label.grid(column=1, row=0, sticky=E)
 
-no_recall_button = ttk.Button(bottom_frame, text="No Recall", command=no_recall)
+no_recall_button = ttk.Button(
+    bottom_frame, text="No Recall", command=no_recall)
 no_recall_button.grid(column=0, row=1, sticky=W)
 
-finish_new_button = ttk.Button(bottom_frame, text="Finish & next", command=finish_recall)
+finish_new_button = ttk.Button(bottom_frame, textvariable=next_var, command=next_patient)
 finish_new_button.grid(column=0, row=2, sticky=W)
 
 for child in main_frame.winfo_children():
@@ -566,8 +735,8 @@ for child in top_frame.winfo_children():
 for child in bottom_frame.winfo_children():
     child.grid_configure(padx=5, pady=20)
 
-finish_new_button.grid_remove()
-
+# finish_new_button.grid_remove()
+next_var.set("Open")
 recall_type_combo.set("")
 patient_count_var.set("Choose type of recall to start!")
 

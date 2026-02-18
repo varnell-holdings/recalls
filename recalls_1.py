@@ -3,6 +3,7 @@ import csv
 import datetime
 from dateutil.parser import parse
 import os
+from pathlib import Path
 import pickle
 import re
 import shutil
@@ -24,7 +25,12 @@ import pyperclip
 from pyisemail import is_email
 import win32com.client as win32  # pip install pywin32
 
-pya.PAUSE = 0.1
+pya.PAUSE = 0.2
+
+class ScrapeException(Exception):
+    pass
+
+base_path = Path("d:\\john tillet\\source\\active\\recalls")
 
 # Get today's date
 today = datetime.date.today()
@@ -37,22 +43,21 @@ parser.add_argument("-n", "--nopickle", action="store_true",
 args = parser.parse_args()
 if args.test:
     print("Test mode activated")
-    csv_address = "d:\\john tillet\\source\\active\\recalls\\csv\\test_csv.csv"
+    csv_address = base_path /"csv" / "test_csv.csv"
     csv_address_2 = "D:\\Nobue\\test_recalls_csv.csv"
 
 else:
     print("Not in  test mode")
-    csv_address = "D:\\JOHN TILLET\\source\\active\\recalls\\csv\\recalls_csv.csv"
+    csv_address = base_path / "csv" /  "recalls_csv.csv"
     csv_address_2 = "D:\\Nobue\\recalls_csv.csv"
 
 
 if args.nopickle:
     print("No pickling mode")
 else:
-    pickle_address = "D:\\JOHN TILLET\\source\\active\\recalls\\pickled_list"
+    pickle_address = base_path / "pickled_list"
 
 full_path = ""
-old_path = ""
 num_to_do = 0
 pat = []  # eg ['Mr Alan MATHISON', 'Stoita', '0432-876-980', 'Colonoscopy']
 email = ""
@@ -60,7 +65,8 @@ phone = ""
 mrn = ""
 dob = ""
 first_run = True
-manual = False
+letter = False
+message = ""
 
 
 output_list_4 = []
@@ -120,6 +126,16 @@ elif user == "Typing2":
     CLOSE_POS = (780, 96)
     SMS_POS = (360, 630)
     EMAIL_POS = (450, 400)
+elif user == "Typing1":
+    RED_BAR_POS = (160, 630)
+    TITLE_POS = (200, 134)
+    MRN_POS = (575, 250)
+    POST_CODE_POS = (480, 280)
+    DOB_POS = (600, 174)
+    FUND_NO_POS = (580, 548)
+    CLOSE_POS = (780, 96)
+    SMS_POS = (360, 630)
+    EMAIL_POS = (450, 400)
 
 
 def get_pickled_list():
@@ -136,11 +152,9 @@ def set_pickled_list():
 
 def collect_file():
     global full_path
-    global old_path
     full_path = askopenfilename()
 
     f.set("    Open Blue Chip now.")
-    old_path = os.path.join("D:\\john tillet\\source\\active\\recalls\\old")
     button2.config(state="normal", style="Normal.TButton")
     root.update_idletasks()
 
@@ -214,7 +228,6 @@ def next_patient():
         p.set("Finished!")
         num_to_do = 0
         n.set(f"{num_to_do} patients to do.")
-        # shutil.move(full_path, old_path)
         full_path = ""
         button1.config(state="normal", style="Normal.TButton")
         button2.config(state="normal", style="Normal.TButton")
@@ -317,6 +330,8 @@ def scrape():
     global mrn
     global email
     global dob
+    global letter
+    global message
 
     scrape_info_label.set("")
     root.update_idletasks()
@@ -343,27 +358,25 @@ def scrape():
     print(dob)
 
     if not mrn.isdigit():
-        scrape_info_label.set("\u274C Error in MRN\nTry again.")
+        message = "\u274C Error in MRN -Try again."
+        scrape_info_label.set(message)
         root.update_idletasks()
-        return
+        raise ScrapeException()
     elif not parse_dob():
-        scrape_info_label.set("\u274C Error in DOB\nTry again.")
+        message = "\u274C Error in DOB - Try again."
+        scrape_info_label.set(message)
         root.update_idletasks()
-        return
+        raise ScrapeException()
     elif (not is_email(email)) or (email in {"", "na"}):
-        scrape_info_label.set("\u274C Problem with email")
+        scrape_info_label.set("")
         root.update_idletasks()
+        letter = True
         return
     else:
-        scrape_info_label.set("Sending text")
+        scrape_info_label.set("")
         root.update_idletasks()
         
-        send_text()
-        time.sleep(1)
-        recall_compose()
-        time.sleep(1)
-        finish_recall()
-        return
+
 
 
 def parse_dob():
@@ -439,8 +452,8 @@ def make_html_body(our_content_id):
         ocd=ocd,
         our_content_id=our_content_id,
     )
-
-    with open("D:\\JOHN TILLET\\source\\active\\recalls\\body_1.html", "wt") as f:
+    t_file = base_path / "body_1.html"
+    with open(t_file, "wt") as f:
         f.write(page)
 
 
@@ -483,6 +496,7 @@ def write_csv(attended):
 
 
 def recall_compose():
+    global message
     outlook = win32.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)  # 0 represents an email item
     mail.Subject = "Procedure reminder"
@@ -497,10 +511,8 @@ def recall_compose():
         CONTENT_ID_PROPERTY, our_content_id)
 
     make_html_body(our_content_id)
-
-    with open(
-        "D:\\JOHN TILLET\\source\\active\\recalls\\body_1.html", "rt", encoding="cp1252"
-    ) as f:
+    r_plate = base_path / "body_1.html"
+    with open(r_plate, "rt", encoding="cp1252") as f:
         html_content = f.read()
 
     mail.HTMLBody = html_content
@@ -511,12 +523,67 @@ def recall_compose():
     # write to csv
     write_csv(attended="no")
 
-    # config
-    scrape_info_label.set("Email made")
+    message += " Email made --> Finish"
+    scrape_info_label.set(message)
     root.update_idletasks()
 
+def postcode_to_state(postcode):
+    post_dic = {"3": "VIC", "4": "QLD", "5": "SA", "6": "WA", "7": "TAS"}
 
-def make_letter_text(pat, dob):
+    try:
+        if postcode[0] == "0":
+            if postcode[:2] in {"08", "09"}:
+                return "NT"
+            else:
+                return ""
+        elif postcode[0] in {"0", "1", "8", "9"}:
+            return ""
+        elif postcode[0] == "2":
+            if (2600 <= int(postcode) <= 2618) or postcode[:2] == 29:
+                return "ACT"
+            else:
+                return "NSW"
+        else:
+            return post_dic[postcode[0]]
+    except Exception:
+        return ""
+
+
+def address_scrape():
+    """Scrape address from blue chip.
+    Used if billing anaesthetist.
+    """
+    # need to work out how to click/tab here from dob box
+    pya.moveTo(100, 450, duration=0.1)
+    pya.click()
+    pya.hotkey("alt", "b")
+    if user == "Typing2":
+        pya.press("tab", presses=3)
+    else:
+        pya.press("tab", presses=3)
+    street = scraper()
+    street = street.replace(",", "")
+
+    pya.press("tab")
+    pya.press("tab")
+    suburb = scraper()
+
+    # enable_mouse()
+    pya.moveTo(POST_CODE_POS, duration=0.1)
+    x1, y1 = POST_CODE_POS
+    # disable_mouse(x1, y1, x1 + 1, y1 + 1)
+    pya.doubleClick()
+    postcode = scraper()
+
+    state = postcode_to_state(postcode)
+    
+    address1 = f"{street}"
+    address2 = f"{suburb} {state} {postcode}"
+
+    return address1, address2
+
+
+def make_letter_text(pat, dob, address1, address2):
     full_name = pat[0]
     title = full_name.split()[0]
     first_name = full_name.split()[1]
@@ -537,7 +604,7 @@ def make_letter_text(pat, dob):
     else:
         ocd = False
 
-    path_to_template = "D:\\JOHN TILLET\\source\\active\\recalls\\templates"
+    path_to_template = base_path / "templates"
     loader = FileSystemLoader(path_to_template)
     env = Environment(loader=loader)
     template_name = "letter_1_template.txt"
@@ -547,6 +614,8 @@ def make_letter_text(pat, dob):
         full_name=full_name,
         title=title,
         last_name=last_name,
+        address1=address1,
+        address2=address2,
         doctor=doctor,
         procedure=procedure,
         over_75=over_75,
@@ -556,19 +625,18 @@ def make_letter_text(pat, dob):
 
 
 def letter_compose():
-    global recall_type
-    recall_type = "letter"
+    global message
     full_name = pat[0]
     title = full_name.split()[0]
     first_name = full_name.split()[1]
     last_name = full_name.split()[-1].title()
     full_name = f"{title} {first_name} {last_name}"
     doctor = pat[1]
+    address1, address2 = address_scrape()
 
-    page = make_letter_text(pat, dob)
+    page = make_letter_text(pat, dob, address1, address2)
 
-    doc = Document(
-        f"d:\\john tillet\\source\\active\\recalls\\headers\\{doctor}.docx")
+    doc = Document(base_path / "headers" / f"{doctor}.docx")
 
     style = doc.styles["Normal"]
     font = style.font
@@ -586,23 +654,33 @@ def letter_compose():
         if i < len(lines) - 1:  # Don't add break after last line
             run.add_break()
 
-    doc.save(f"d:\\john tillet\\source\\active\\recalls\\letters\\{
-             last_name}.docx")
+    folder = base_path / "letters" / today.isoformat()
+    folder.mkdir(parents=True, exist_ok=True)
+    doc.save(folder / f"{last_name}.docx")
     write_csv(attended="no")
-    scrape_info_label.set("Letter made\nCancel manually")
+    message += " Letter made --> Finish"
+    scrape_info_label.set(message)
     root.update_idletasks()
-    os.startfile(f"d:\\john tillet\\source\\active\\recalls\\letters\\{
-        last_name}.docx")
+
 
 
 def send_text():
+    global message
+    global letter
     p.set("")
+    message = "Sending Text"
+    scrape_info_label.set(message)
     full_name = pat[0]
     title = full_name.split()[0]
     last_name = full_name.split()[-1].title()
     doctor = pat[1]
-    message = f"Dear {title} {last_name} just advising you that an email will be sent to you from Dr {
-        doctor} with a reminder that you are now due for your procedure. Please review email and contact our office on 83826622 if you have any queries and for all bookings."
+    if letter:
+        method = "a letter"
+    else:
+        method = "an email"
+    
+    message = f"Dear {title} {last_name} advising you that {method} will be sent to you from Dr {
+        doctor} with a reminder that you are now due for your procedure. Please review and contact our office on 83826622 if you have any queries and for all bookings."
 
     pya.moveTo(100, 450, duration=0.3)
     pya.click()
@@ -617,41 +695,54 @@ def send_text():
     pya.press("enter")
     time.sleep(3)
     pya.press("enter")
-    scrape_info_label.set("Text sent - open Outlook")
+    message = "Text sent "
+    scrape_info_label.set(message)
     root.update_idletasks()
 
-def manual_send():
-    global manual
-    manual = True
-    send_text()
-    recall_compose()
-    return
 
+def recall():
+    try:
+        scrape()
+    except ScrapeException:
+        return
+    send_text()
+    time.sleep(1)
+    if not letter:
+        recall_compose()
+    else:
+       letter_compose() 
+    time.sleep(1)
+    # finish_recall()
 
 def no_recall():
     global recall_number
-    global recall_type
+    global message
+
     write_csv(attended="yes")
-    scrape_info_label.set("No recall sent -> finish")
-    root.update_idletasks()
     recall_number = "none"
-    recall_type = "none"
     pya.click(100, 400)
     pya.press("up", presses=3)
     pya.press("enter")
-    pya.hotkey("alt", "n")
+    pya.hotkey("alt", "m")
     pya.press("enter")
 
     p.set("")
-    finish_recall()
+    message = "No recall sent -> finish"
+    scrape_info_label.set(message)
+    root.update_idletasks()
+    # finish_recall()
 
 
 def close_out():
+    global letter
+    global message
     if not args.nopickle:
         set_pickled_list()
-    full_name = pat[0]
-    scrape_info_label.set(f"{full_name} finished")
+    letter = False
+    message = ""
+    scrape_info_label.set(message)
     root.update_idletasks()
+    time.sleep(2)
     pya.moveTo(CLOSE_POS[0], CLOSE_POS[1])
     pya.click()
     pya.hotkey("alt", "n")
@@ -673,12 +764,12 @@ def finish_exit():
 
 
 def open_letters():
-    os.startfile("d:\\john tillet\\source\\active\\recalls\\letters")
+    os.startfile(base_path / "letters")
 
 
 def reset_program():
     subprocess.run(
-        [sys.executable, "D:\\JOHN TILLET\\source\\active\\recalls\\pickler.py"])
+        [sys.executable, base_path / "pickler.py"])
     sys.exit(1)
 
 
@@ -755,32 +846,26 @@ open_by_name_button = ttk.Button(
 open_by_name_button.grid(column=1, row=0, sticky=E)
 
 
-scrape_button = ttk.Button(bottomframe, text="Text & Email", command=scrape)
-scrape_button.grid(column=0, row=1, sticky=W)
-
-scrape_label = ttk.Label(bottomframe, textvariable=scrape_info_label)
-scrape_label.grid(column=0, row=2, sticky=E)
+recall_button = ttk.Button(bottomframe, text="Recall", command=recall)
+recall_button.grid(column=0, row=1, sticky=W)
 
 
-manual_button = ttk.Button(
-    bottomframe, text="Manual Send", command=manual_send
-)
-manual_button.grid(column=1, row=1, sticky=E)
-
-letter_button = ttk.Button(
-    bottomframe, text="Recall letter", command=letter_compose
-)
-letter_button.grid(column=1, row=2, sticky=E)
 
 
-button5 = ttk.Button(bottomframe, text="No Recall", command=no_recall)
-button5.grid(column=1, row=3, sticky=E)
+no_recall_button = ttk.Button(
+    bottomframe, text="No Recall", command=no_recall)
+no_recall_button.grid(column=1, row=1, sticky=E)
+
+
 
 button_6 = ttk.Button(bottomframe, text="Finish & new", command=finish_recall)
-button_6.grid(column=0, row=3, sticky=W)
+button_6.grid(column=0, row=2, sticky=W)
 
 button_7 = ttk.Button(bottomframe, text="Finish & exit", command=finish_exit)
-button_7.grid(column=1, row=4, sticky=E)
+button_7.grid(column=1, row=2, sticky=E)
+
+scrape_label = ttk.Label(bottomframe, textvariable=scrape_info_label)
+scrape_label.grid(column=0, row=3, sticky=E)
 
 for child in mainframe.winfo_children():
     child.grid_configure(padx=5, pady=10)
