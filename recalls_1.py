@@ -130,7 +130,7 @@ elif user == "Typing2":
     EMAIL_POS = (450, 400)
 
 
-# --- Helper functions ---
+# --- Pure utility helpers ---
 
 
 def parse_patient_name(pat):
@@ -165,6 +165,80 @@ def postcode_to_state(postcode):
         return ""
 
 
+def parse_dob():
+    try:
+        parse(state["dob"], dayfirst=True)
+        return True
+    except Exception:
+        return False
+
+
+def is_over_75(date_of_birth):
+    dob = datetime.datetime.strptime(date_of_birth, "%d/%m/%Y")
+    age = today.year - dob.year
+    if (today.month, today.day) < (dob.month, dob.day):
+        age -= 1
+    return age > 75
+
+
+# --- Data persistence ---
+
+
+def get_pickled_list():
+    with open(pickle_address, "rb") as fh:
+        state["output_list_4"] = pickle.load(fh)
+
+
+def set_pickled_list():
+    with open(pickle_address, "wb") as fh:
+        pickle.dump(state["output_list_4"], fh)
+
+
+def write_csv(attended):
+    day_sent = today.isoformat()
+    name = state["pat"][0]
+    doctor = state["pat"][1]
+    procedure = state["pat"][3]
+    email_to_write = state["email"]  # may be email or pipe-separated address
+    if attended == "yes":
+        first = ""
+    else:
+        first = day_sent
+    with open(csv_address, "a") as fh:
+        writer = csv.writer(fh, dialect="excel", lineterminator="\n")
+        # name, doctor, mrn, dob, procedure, email, first, second, third, attended
+        entry = [
+            name,
+            doctor,
+            state["mrn"],
+            state["dob"],
+            procedure,
+            email_to_write,
+            first,
+            "",
+            "",
+            attended,
+        ]
+        writer.writerow(entry)
+    shutil.copy(csv_address, csv_address_2)
+
+
+# --- Blue Chip interaction (scraping and navigation) ---
+
+
+def scraper(email=False):
+    result = "na"
+    pya.hotkey("ctrl", "c")
+    result = pyperclip.paste()
+    if email:
+        result = re.split(r"[\s,:/;\\*]", result)[0]
+        for object in result:
+            if is_email(object):
+                return object
+            return ""
+    return result
+
+
 def address_scrape():
     """Scrape street, suburb, postcode from Blue Chip patient info page."""
     pya.moveTo(100, 450, duration=0.1)
@@ -190,14 +264,265 @@ def address_scrape():
     return address1, address2
 
 
-def get_pickled_list():
-    with open(pickle_address, "rb") as fh:
-        state["output_list_4"] = pickle.load(fh)
+def open_bc_by_name():
+    name_as_list = state["pat"][0].split()
+    name_for_bc = name_as_list[-1] + "," + name_as_list[1]
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.hotkey("ctrl", "o")
+    pya.typewrite(name_for_bc)
+    pya.press("enter")
 
 
-def set_pickled_list():
-    with open(pickle_address, "wb") as fh:
-        pickle.dump(state["output_list_4"], fh)
+def open_bc_by_phone():
+    phone = state["pat"][2].replace("-", "")
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.hotkey("ctrl", "o")
+    pya.hotkey("alt", "b")
+    time.sleep(0.2)
+
+    pya.press("down", presses=4)
+
+    pya.hotkey("shift", "tab")
+    pya.hotkey("shift", "tab")
+    pya.typewrite(phone)
+    pya.press("enter")
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.press("up", presses=4)
+    pya.press("enter")
+
+
+# --- Content generation (email and letter templates) ---
+
+
+def make_html_body(our_content_id):
+    """Uses jinja2 to construct the html body of the email. Saves in body_1.html"""
+    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
+    doctor = state["pat"][1]
+    doc_first_name = full_doc_dict[doctor]
+    ocd = doctor in ocd_doc_set
+
+    procedure = state["pat"][3]
+    if procedure == "COL/PE":
+        procedure = "Gastroscopy and Colonoscopy"
+    if procedure == "Panendoscopy":
+        procedure = "Gastroscopy"
+
+    over_75 = is_over_75(state["dob"])
+
+    loader = FileSystemLoader(TEMPLATE_PATH)
+    env = Environment(loader=loader)
+    template = env.get_template("email_1_template.html")
+    page = template.render(
+        today_date=today_str,
+        full_name=full_name,
+        title=title,
+        last_name=last_name,
+        doc_first_name=doc_first_name,
+        doctor=doctor,
+        procedure=procedure,
+        over_75=over_75,
+        ocd=ocd,
+        our_content_id=our_content_id,
+    )
+
+    BODY_HTML_PATH.write_text(page)
+
+
+def make_letter_text(pat, dob, address1, address2):
+    title, first_name, last_name, full_name = parse_patient_name(pat)
+    doctor = pat[1]
+    procedure = pat[3]
+    if procedure == "COL/PE":
+        procedure = "Gastroscopy and Colonoscopy"
+    if procedure == "Panendoscopy":
+        procedure = "Gastroscopy"
+
+    over_75 = is_over_75(dob)
+    ocd = doctor in ocd_doc_set
+
+    loader = FileSystemLoader(TEMPLATE_PATH)
+    env = Environment(loader=loader)
+    template = env.get_template("letter_1_template.txt")
+    page = template.render(
+        today_date=today_str,
+        full_name=full_name,
+        title=title,
+        last_name=last_name,
+        address1=address1,
+        address2=address2,
+        doctor=doctor,
+        procedure=procedure,
+        over_75=over_75,
+        ocd=ocd,
+    )
+    return page
+
+
+# --- Workflow actions (send text, email, letter) ---
+
+
+def send_text():
+    widgets["patient_label_var"].set("")
+    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
+    doctor = state["pat"][1]
+    message = f"Dear {title} {
+        last_name
+    } just advising you that an email will be sent to you from Dr {
+        doctor
+    } with a reminder that you are now due for your procedure. Please review email and contact our office on 83826622 if you have any queries and for all bookings."
+
+    pya.moveTo(100, 450, duration=0.3)
+    pya.click()
+    pya.press("up", presses=3)
+    pya.press("enter")
+    pya.hotkey("alt", "n")
+    pya.moveTo(SMS_POS[0], SMS_POS[1])
+    pya.click()
+    pya.typewrite(message)
+    time.sleep(2)
+    pya.press("tab")
+    pya.press("enter")
+    time.sleep(3)
+    pya.press("enter")
+    widgets["scrape_info_label"].set("Text sent - open Outlook")
+    widgets["root"].update_idletasks()
+
+
+def recall_compose():
+    outlook = win32.Dispatch("Outlook.Application")
+    mail = outlook.CreateItem(0)
+    mail.Subject = "Procedure reminder"
+
+    mail.To = state["email"]
+
+    attachment = mail.Attachments.Add(str(LOGO_PATH))
+    CONTENT_ID_PROPERTY = "http://schemas.microsoft.com/mapi/proptag/0x3712001F"
+    our_content_id = "my_logo_123"
+    attachment.PropertyAccessor.SetProperty(CONTENT_ID_PROPERTY, our_content_id)
+
+    make_html_body(our_content_id)
+
+    html_content = BODY_HTML_PATH.read_text(encoding="cp1252")
+
+    mail.HTMLBody = html_content
+    mail.Send()
+    write_csv(attended="no")
+
+    widgets["scrape_info_label"].set("Email made")
+    widgets["root"].update_idletasks()
+
+
+def letter_compose():
+    state["recall_type"] = "letter"
+    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
+    doctor = state["pat"][1]
+
+    address1, address2 = address_scrape()
+    state["email"] = f"{address1} | {address2}"
+
+    page = make_letter_text(state["pat"], state["dob"], address1, address2)
+
+    doc = Document(HEADERS_PATH / f"{doctor}.docx")
+
+    style = doc.styles["Normal"]
+    font = style.font
+    font.name = "Bookman Old Style"
+    font.size = Pt(12)
+
+    paragraph = doc.add_paragraph()
+
+    lines = page.split("\n")
+
+    for i, line in enumerate(lines):
+        run = paragraph.add_run(line)
+        if i < len(lines) - 1:
+            run.add_break()
+
+    folder = LETTERS_PATH / today.isoformat()
+    folder.mkdir(parents=True, exist_ok=True)
+    letter_path = folder / f"{last_name}.docx"
+    doc.save(letter_path)
+    write_csv(attended="no")
+    widgets["scrape_info_label"].set("Letter made\nCancel manually")
+    widgets["root"].update_idletasks()
+    os.startfile(letter_path)
+
+
+def recall():
+    widgets["scrape_info_label"].set("")
+    widgets["root"].update_idletasks()
+
+    # Navigate to patient info page in BC
+    pya.moveTo(100, 450, duration=0.1)
+    pya.click()
+    pya.press("up", presses=9)
+    pya.press("enter")
+    time.sleep(0.5)
+
+    # Try scraping up to 3 times
+    for attempt in range(3):
+        pya.moveTo(EMAIL_POS)
+        pya.doubleClick()
+        state["email"] = scraper()
+
+        pya.moveTo(MRN_POS)
+        pya.doubleClick()
+        state["mrn"] = scraper()
+
+        pya.moveTo(DOB_POS)
+        pya.doubleClick()
+        state["dob"] = scraper()
+
+        mrn_ok = state["mrn"].isdigit()
+        dob_ok = parse_dob()
+
+        if mrn_ok and dob_ok:
+            break
+
+        widgets["scrape_info_label"].set(f"Scrape failed (attempt {attempt + 1}/3)")
+        widgets["root"].update_idletasks()
+        time.sleep(0.5)
+    else:
+        # All 3 attempts failed — skip this patient
+        widgets["scrape_info_label"].set("Scrape failed — skipping patient")
+        widgets["root"].update_idletasks()
+        no_recall()
+        return
+
+    # Scrape succeeded — send text
+    widgets["scrape_info_label"].set("Sending text")
+    widgets["root"].update_idletasks()
+    send_text()
+
+    # Decide: email or letter
+    if is_email(state["email"]) and state["email"] not in {"", "na"}:
+        recall_compose()
+    else:
+        widgets["scrape_info_label"].set("No email — making letter")
+        widgets["root"].update_idletasks()
+        letter_compose()
+
+
+def no_recall():
+    write_csv(attended="yes")
+    widgets["scrape_info_label"].set("No recall sent -> finish")
+    widgets["root"].update_idletasks()
+    state["recall_number"] = "none"
+    state["recall_type"] = "none"
+    pya.click(100, 400)
+    pya.press("up", presses=3)
+    pya.press("enter")
+    pya.hotkey("alt", "n")
+    pya.press("enter")
+
+    widgets["patient_label_var"].set("")
+    finish_recall()
+
+
+# --- Patient flow control ---
 
 
 def collect_file():
@@ -290,316 +615,6 @@ def next_patient():
         open_bc_by_name()
 
 
-def open_bc_by_name():
-    name_as_list = state["pat"][0].split()
-    name_for_bc = name_as_list[-1] + "," + name_as_list[1]
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.hotkey("ctrl", "o")
-    pya.typewrite(name_for_bc)
-    pya.press("enter")
-
-
-def open_bc_by_phone():
-    phone = state["pat"][2].replace("-", "")
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.hotkey("ctrl", "o")
-    pya.hotkey("alt", "b")
-    time.sleep(0.2)
-
-    pya.press("down", presses=4)
-
-    pya.hotkey("shift", "tab")
-    pya.hotkey("shift", "tab")
-    pya.typewrite(phone)
-    pya.press("enter")
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.press("up", presses=4)
-    pya.press("enter")
-
-
-def scraper(email=False):
-    result = "na"
-    pya.hotkey("ctrl", "c")
-    result = pyperclip.paste()
-    if email:
-        result = re.split(r"[\s,:/;\\*]", result)[0]
-        for object in result:
-            if is_email(object):
-                return object
-            return ""
-    return result
-
-
-def recall():
-    widgets["scrape_info_label"].set("")
-    widgets["root"].update_idletasks()
-
-    # Navigate to patient info page in BC
-    pya.moveTo(100, 450, duration=0.1)
-    pya.click()
-    pya.press("up", presses=9)
-    pya.press("enter")
-    time.sleep(0.5)
-
-    # Try scraping up to 3 times
-    for attempt in range(3):
-        pya.moveTo(EMAIL_POS)
-        pya.doubleClick()
-        state["email"] = scraper()
-
-        pya.moveTo(MRN_POS)
-        pya.doubleClick()
-        state["mrn"] = scraper()
-
-        pya.moveTo(DOB_POS)
-        pya.doubleClick()
-        state["dob"] = scraper()
-
-        mrn_ok = state["mrn"].isdigit()
-        dob_ok = parse_dob()
-
-        if mrn_ok and dob_ok:
-            break
-
-        widgets["scrape_info_label"].set(f"Scrape failed (attempt {attempt + 1}/3)")
-        widgets["root"].update_idletasks()
-        time.sleep(0.5)
-    else:
-        # All 3 attempts failed — skip this patient
-        widgets["scrape_info_label"].set("Scrape failed — skipping patient")
-        widgets["root"].update_idletasks()
-        no_recall()
-        return
-
-    # Scrape succeeded — send text
-    widgets["scrape_info_label"].set("Sending text")
-    widgets["root"].update_idletasks()
-    send_text()
-
-    # Decide: email or letter
-    if is_email(state["email"]) and state["email"] not in {"", "na"}:
-        recall_compose()
-    else:
-        widgets["scrape_info_label"].set("No email — making letter")
-        widgets["root"].update_idletasks()
-        letter_compose()
-
-
-def parse_dob():
-    try:
-        parse(state["dob"], dayfirst=True)
-        return True
-    except Exception:
-        return False
-
-
-def is_over_75(date_of_birth):
-    dob = datetime.datetime.strptime(date_of_birth, "%d/%m/%Y")
-    age = today.year - dob.year
-    if (today.month, today.day) < (dob.month, dob.day):
-        age -= 1
-    return age > 75
-
-
-def make_html_body(our_content_id):
-    """Uses jinja2 to construct the html body of the email. Saves in body_1.html"""
-    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
-    doctor = state["pat"][1]
-    doc_first_name = full_doc_dict[doctor]
-    ocd = doctor in ocd_doc_set
-
-    procedure = state["pat"][3]
-    if procedure == "COL/PE":
-        procedure = "Gastroscopy and Colonoscopy"
-    if procedure == "Panendoscopy":
-        procedure = "Gastroscopy"
-
-    over_75 = is_over_75(state["dob"])
-
-    loader = FileSystemLoader(TEMPLATE_PATH)
-    env = Environment(loader=loader)
-    template = env.get_template("email_1_template.html")
-    page = template.render(
-        today_date=today_str,
-        full_name=full_name,
-        title=title,
-        last_name=last_name,
-        doc_first_name=doc_first_name,
-        doctor=doctor,
-        procedure=procedure,
-        over_75=over_75,
-        ocd=ocd,
-        our_content_id=our_content_id,
-    )
-
-    BODY_HTML_PATH.write_text(page)
-
-
-def write_csv(attended):
-    day_sent = today.isoformat()
-    name = state["pat"][0]
-    doctor = state["pat"][1]
-    procedure = state["pat"][3]
-    email_to_write = state["email"]  # may be email or pipe-separated address
-    if attended == "yes":
-        first = ""
-    else:
-        first = day_sent
-    with open(csv_address, "a") as fh:
-        writer = csv.writer(fh, dialect="excel", lineterminator="\n")
-        # name, doctor, mrn, dob, procedure, email, first, second, third, attended
-        entry = [
-            name,
-            doctor,
-            state["mrn"],
-            state["dob"],
-            procedure,
-            email_to_write,
-            first,
-            "",
-            "",
-            attended,
-        ]
-        writer.writerow(entry)
-    shutil.copy(csv_address, csv_address_2)
-
-
-def recall_compose():
-    outlook = win32.Dispatch("Outlook.Application")
-    mail = outlook.CreateItem(0)
-    mail.Subject = "Procedure reminder"
-
-    mail.To = state["email"]
-
-    attachment = mail.Attachments.Add(str(LOGO_PATH))
-    CONTENT_ID_PROPERTY = "http://schemas.microsoft.com/mapi/proptag/0x3712001F"
-    our_content_id = "my_logo_123"
-    attachment.PropertyAccessor.SetProperty(CONTENT_ID_PROPERTY, our_content_id)
-
-    make_html_body(our_content_id)
-
-    html_content = BODY_HTML_PATH.read_text(encoding="cp1252")
-
-    mail.HTMLBody = html_content
-    mail.Send()
-    write_csv(attended="no")
-
-    widgets["scrape_info_label"].set("Email made")
-    widgets["root"].update_idletasks()
-
-
-def make_letter_text(pat, dob, address1, address2):
-    title, first_name, last_name, full_name = parse_patient_name(pat)
-    doctor = pat[1]
-    procedure = pat[3]
-    if procedure == "COL/PE":
-        procedure = "Gastroscopy and Colonoscopy"
-    if procedure == "Panendoscopy":
-        procedure = "Gastroscopy"
-
-    over_75 = is_over_75(dob)
-    ocd = doctor in ocd_doc_set
-
-    loader = FileSystemLoader(TEMPLATE_PATH)
-    env = Environment(loader=loader)
-    template = env.get_template("letter_1_template.txt")
-    page = template.render(
-        today_date=today_str,
-        full_name=full_name,
-        title=title,
-        last_name=last_name,
-        address1=address1,
-        address2=address2,
-        doctor=doctor,
-        procedure=procedure,
-        over_75=over_75,
-        ocd=ocd,
-    )
-    return page
-
-
-def letter_compose():
-    state["recall_type"] = "letter"
-    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
-    doctor = state["pat"][1]
-
-    address1, address2 = address_scrape()
-    state["email"] = f"{address1} | {address2}"
-
-    page = make_letter_text(state["pat"], state["dob"], address1, address2)
-
-    doc = Document(HEADERS_PATH / f"{doctor}.docx")
-
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Bookman Old Style"
-    font.size = Pt(12)
-
-    paragraph = doc.add_paragraph()
-
-    lines = page.split("\n")
-
-    for i, line in enumerate(lines):
-        run = paragraph.add_run(line)
-        if i < len(lines) - 1:
-            run.add_break()
-
-    folder = LETTERS_PATH / today.isoformat()
-    folder.mkdir(parents=True, exist_ok=True)
-    letter_path = folder / f"{last_name}.docx"
-    doc.save(letter_path)
-    write_csv(attended="no")
-    widgets["scrape_info_label"].set("Letter made\nCancel manually")
-    widgets["root"].update_idletasks()
-    os.startfile(letter_path)
-
-
-def send_text():
-    widgets["patient_label_var"].set("")
-    title, first_name, last_name, full_name = parse_patient_name(state["pat"])
-    doctor = state["pat"][1]
-    message = f"Dear {title} {
-        last_name
-    } just advising you that an email will be sent to you from Dr {
-        doctor
-    } with a reminder that you are now due for your procedure. Please review email and contact our office on 83826622 if you have any queries and for all bookings."
-
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.press("up", presses=3)
-    pya.press("enter")
-    pya.hotkey("alt", "n")
-    pya.moveTo(SMS_POS[0], SMS_POS[1])
-    pya.click()
-    pya.typewrite(message)
-    time.sleep(2)
-    pya.press("tab")
-    pya.press("enter")
-    time.sleep(3)
-    pya.press("enter")
-    widgets["scrape_info_label"].set("Text sent - open Outlook")
-    widgets["root"].update_idletasks()
-
-
-def no_recall():
-    write_csv(attended="yes")
-    widgets["scrape_info_label"].set("No recall sent -> finish")
-    widgets["root"].update_idletasks()
-    state["recall_number"] = "none"
-    state["recall_type"] = "none"
-    pya.click(100, 400)
-    pya.press("up", presses=3)
-    pya.press("enter")
-    pya.hotkey("alt", "n")
-    pya.press("enter")
-
-    widgets["patient_label_var"].set("")
-    finish_recall()
-
-
 def close_out():
     if not args.nopickle:
         set_pickled_list()
@@ -623,6 +638,9 @@ def finish_recall():
 def finish_exit():
     close_out()
     sys.exit(1)
+
+
+# --- Menu commands ---
 
 
 def open_letters():
