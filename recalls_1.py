@@ -58,13 +58,12 @@ if not args.nopickle:
 state = {
     "full_path": "",
     "num_to_do": 0,
-    "pat": [],        # eg ['Mr Alan MATHISON', 'Stoita', '0432-876-980', 'Colonoscopy']
+    "pat": [],  # eg ['Mr Alan MATHISON', 'Stoita', '0432-876-980', 'Colonoscopy']
     "email": "",
     "phone": "",
     "mrn": "",
     "dob": "",
     "first_run": True,
-    "manual": False,
     "output_list_4": [],
     "recall_type": "",
     "recall_number": "",
@@ -133,6 +132,7 @@ elif user == "Typing2":
 
 # --- Helper functions ---
 
+
 def parse_patient_name(pat):
     """Extract title, first name, last name from patient record."""
     full_name = pat[0]
@@ -141,6 +141,53 @@ def parse_patient_name(pat):
     last_name = full_name.split()[-1].title()
     full_name_formatted = f"{title} {first_name} {last_name}"
     return title, first_name, last_name, full_name_formatted
+
+
+def postcode_to_state(postcode):
+    """Convert Australian postcode to state abbreviation."""
+    post_dic = {"3": "VIC", "4": "QLD", "5": "SA", "6": "WA", "7": "TAS"}
+    try:
+        if postcode[0] == "0":
+            if postcode[:2] in {"08", "09"}:
+                return "NT"
+            else:
+                return ""
+        elif postcode[0] in {"0", "1", "8", "9"}:
+            return ""
+        elif postcode[0] == "2":
+            if (2600 <= int(postcode) <= 2618) or postcode[:2] == "29":
+                return "ACT"
+            else:
+                return "NSW"
+        else:
+            return post_dic[postcode[0]]
+    except Exception:
+        return ""
+
+
+def address_scrape():
+    """Scrape street, suburb, postcode from Blue Chip patient info page."""
+    pya.moveTo(100, 450, duration=0.1)
+    pya.click()
+    pya.hotkey("alt", "b")
+    pya.press("tab", presses=3)
+    street = scraper()
+    street = street.replace(",", "")
+
+    pya.press("tab")
+    pya.press("tab")
+    suburb = scraper()
+
+    pya.moveTo(POST_CODE_POS, duration=0.1)
+    pya.doubleClick()
+    postcode = scraper()
+
+    aus_state = postcode_to_state(postcode)
+
+    address1 = f"{street}"
+    address2 = f"{suburb} {aus_state} {postcode}"
+
+    return address1, address2
 
 
 def get_pickled_list():
@@ -212,7 +259,6 @@ def next_patient():
         get_pickled_list()
     try:
         state["pat"] = state["output_list_4"].pop()
-        state["manual"] = False
 
     except IndexError:
         widgets["patient_label_var"].set("Finished!")
@@ -245,23 +291,6 @@ def next_patient():
 
 
 def open_bc_by_name():
-    name_as_list = state["pat"][0].split()
-    name_for_bc = name_as_list[-1] + "," + name_as_list[1]
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.hotkey("ctrl", "o")
-    pya.typewrite(name_for_bc)
-    pya.press("enter")
-    time.sleep(1.6)
-    pya.press("enter")
-    pya.moveTo(100, 450, duration=0.3)
-    pya.click()
-    pya.press("up", presses=4)
-    pya.press("enter")
-
-
-def open_bc_by_name_short():
-    """Stops at list of names."""
     name_as_list = state["pat"][0].split()
     name_for_bc = name_as_list[-1] + "," + name_as_list[1]
     pya.moveTo(100, 450, duration=0.3)
@@ -304,50 +333,59 @@ def scraper(email=False):
     return result
 
 
-def scrape():
+def recall():
     widgets["scrape_info_label"].set("")
     widgets["root"].update_idletasks()
 
+    # Navigate to patient info page in BC
     pya.moveTo(100, 450, duration=0.1)
     pya.click()
     pya.press("up", presses=9)
     pya.press("enter")
     time.sleep(0.5)
 
-    pya.moveTo(EMAIL_POS)
-    pya.doubleClick()
-    state["email"] = scraper()
+    # Try scraping up to 3 times
+    for attempt in range(3):
+        pya.moveTo(EMAIL_POS)
+        pya.doubleClick()
+        state["email"] = scraper()
 
-    pya.moveTo(MRN_POS)
-    pya.doubleClick()
-    state["mrn"] = scraper()
+        pya.moveTo(MRN_POS)
+        pya.doubleClick()
+        state["mrn"] = scraper()
 
-    pya.moveTo(DOB_POS)
-    pya.doubleClick()
-    state["dob"] = scraper()
+        pya.moveTo(DOB_POS)
+        pya.doubleClick()
+        state["dob"] = scraper()
 
-    if not state["mrn"].isdigit():
-        widgets["scrape_info_label"].set("\u274c Error in MRN\nTry again.")
+        mrn_ok = state["mrn"].isdigit()
+        dob_ok = parse_dob()
+
+        if mrn_ok and dob_ok:
+            break
+
+        widgets["scrape_info_label"].set(f"Scrape failed (attempt {attempt + 1}/3)")
         widgets["root"].update_idletasks()
-        return
-    elif not parse_dob():
-        widgets["scrape_info_label"].set("\u274c Error in DOB\nTry again.")
-        widgets["root"].update_idletasks()
-        return
-    elif (not is_email(state["email"])) or (state["email"] in {"", "na"}):
-        widgets["scrape_info_label"].set("\u274c Problem with email")
-        widgets["root"].update_idletasks()
-        return
+        time.sleep(0.5)
     else:
-        widgets["scrape_info_label"].set("\u2705")
+        # All 3 attempts failed — skip this patient
+        widgets["scrape_info_label"].set("Scrape failed — skipping patient")
         widgets["root"].update_idletasks()
-
-        widgets["scrape_info_label"].set("Sending text")
-        widgets["root"].update_idletasks()
-        send_text()
-
-        recall_compose()
+        no_recall()
         return
+
+    # Scrape succeeded — send text
+    widgets["scrape_info_label"].set("Sending text")
+    widgets["root"].update_idletasks()
+    send_text()
+
+    # Decide: email or letter
+    if is_email(state["email"]) and state["email"] not in {"", "na"}:
+        recall_compose()
+    else:
+        widgets["scrape_info_label"].set("No email — making letter")
+        widgets["root"].update_idletasks()
+        letter_compose()
 
 
 def parse_dob():
@@ -405,9 +443,7 @@ def write_csv(attended):
     name = state["pat"][0]
     doctor = state["pat"][1]
     procedure = state["pat"][3]
-    email_to_write = state["email"]
-    if not is_email(email_to_write):
-        email_to_write = ""
+    email_to_write = state["email"]  # may be email or pipe-separated address
     if attended == "yes":
         first = ""
     else:
@@ -448,17 +484,14 @@ def recall_compose():
     html_content = BODY_HTML_PATH.read_text(encoding="cp1252")
 
     mail.HTMLBody = html_content
-    if not state["manual"]:
-        mail.Send()
-    else:
-        mail.Display()
+    mail.Send()
     write_csv(attended="no")
 
     widgets["scrape_info_label"].set("Email made")
     widgets["root"].update_idletasks()
 
 
-def make_letter_text(pat, dob):
+def make_letter_text(pat, dob, address1, address2):
     title, first_name, last_name, full_name = parse_patient_name(pat)
     doctor = pat[1]
     procedure = pat[3]
@@ -478,6 +511,8 @@ def make_letter_text(pat, dob):
         full_name=full_name,
         title=title,
         last_name=last_name,
+        address1=address1,
+        address2=address2,
         doctor=doctor,
         procedure=procedure,
         over_75=over_75,
@@ -491,7 +526,10 @@ def letter_compose():
     title, first_name, last_name, full_name = parse_patient_name(state["pat"])
     doctor = state["pat"][1]
 
-    page = make_letter_text(state["pat"], state["dob"])
+    address1, address2 = address_scrape()
+    state["email"] = f"{address1} | {address2}"
+
+    page = make_letter_text(state["pat"], state["dob"], address1, address2)
 
     doc = Document(HEADERS_PATH / f"{doctor}.docx")
 
@@ -509,7 +547,9 @@ def letter_compose():
         if i < len(lines) - 1:
             run.add_break()
 
-    letter_path = LETTERS_PATH / f"{last_name}.docx"
+    folder = LETTERS_PATH / today.isoformat()
+    folder.mkdir(parents=True, exist_ok=True)
+    letter_path = folder / f"{last_name}.docx"
     doc.save(letter_path)
     write_csv(attended="no")
     widgets["scrape_info_label"].set("Letter made\nCancel manually")
@@ -542,12 +582,6 @@ def send_text():
     pya.press("enter")
     widgets["scrape_info_label"].set("Text sent - open Outlook")
     widgets["root"].update_idletasks()
-
-
-def manual_send():
-    state["manual"] = True
-    send_text()
-    recall_compose()
 
 
 def no_recall():
@@ -601,6 +635,7 @@ def reset_program():
 
 
 # --- GUI ---
+
 
 def main():
     if not args.nopickle:
@@ -669,34 +704,22 @@ def main():
     count_label.grid(column=1, row=1, sticky=E)
 
     # --- Bottom panel: patient processing ---
-    patient_label = ttk.Label(
-        bottomframe, textvariable=widgets["patient_label_var"]
-    )
+    patient_label = ttk.Label(bottomframe, textvariable=widgets["patient_label_var"])
     patient_label.grid(column=0, row=0, sticky=W)
 
     open_by_name_button = ttk.Button(
-        bottomframe, text="Open by name", command=open_bc_by_name_short
+        bottomframe, text="Open by name", command=open_bc_by_name
     )
     open_by_name_button.grid(column=1, row=0, sticky=E)
 
-    scrape_button = ttk.Button(bottomframe, text="Text & Email", command=scrape)
-    scrape_button.grid(column=0, row=1, sticky=W)
-
-    scrape_label = ttk.Label(
-        bottomframe, textvariable=widgets["scrape_info_label"]
-    )
-    scrape_label.grid(column=0, row=2, sticky=E)
-
-    manual_button = ttk.Button(bottomframe, text="Manual Send", command=manual_send)
-    manual_button.grid(column=1, row=1, sticky=E)
-
-    letter_button = ttk.Button(
-        bottomframe, text="Recall letter", command=letter_compose
-    )
-    letter_button.grid(column=1, row=2, sticky=E)
+    recall_button = ttk.Button(bottomframe, text="Recall", command=recall)
+    recall_button.grid(column=0, row=1, sticky=W)
 
     no_recall_button = ttk.Button(bottomframe, text="No Recall", command=no_recall)
-    no_recall_button.grid(column=1, row=3, sticky=E)
+    no_recall_button.grid(column=1, row=1, sticky=E)
+
+    scrape_label = ttk.Label(bottomframe, textvariable=widgets["scrape_info_label"])
+    scrape_label.grid(column=0, row=2, sticky=W)
 
     finish_new_button = ttk.Button(
         bottomframe, text="Finish & new", command=finish_recall
@@ -706,7 +729,7 @@ def main():
     finish_exit_button = ttk.Button(
         bottomframe, text="Finish & exit", command=finish_exit
     )
-    finish_exit_button.grid(column=1, row=4, sticky=E)
+    finish_exit_button.grid(column=1, row=3, sticky=E)
 
     for child in mainframe.winfo_children():
         child.grid_configure(padx=5, pady=10)
@@ -725,9 +748,7 @@ def main():
         next_patient()
     else:
         widgets["open_file_button"].config(state="normal", style="Normal.TButton")
-        widgets["create_datafile_button"].config(
-            state="normal", style="Normal.TButton"
-        )
+        widgets["create_datafile_button"].config(state="normal", style="Normal.TButton")
         widgets["count_label_var"].set("")
 
     widgets["scrape_info_label"].set("")
